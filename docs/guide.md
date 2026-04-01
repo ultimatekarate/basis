@@ -323,15 +323,7 @@ Checks for duplicate newtypes, duplicate union names, empty variant lists, unkno
 ### Generate code skeletons
 
 ```bash
-basis-cli generate --lang python --spec basis.yaml --output generated/
-basis-cli generate --lang rust --spec basis.yaml --output generated/
-basis-cli generate --lang js --spec basis.yaml --output generated/
-basis-cli generate --lang go --spec basis.yaml --output generated/
-basis-cli generate --lang java --spec basis.yaml --output generated/
-basis-cli generate --lang kotlin --spec basis.yaml --output generated/
-basis-cli generate --lang swift --spec basis.yaml --output generated/
-basis-cli generate --lang csharp --spec basis.yaml --output generated/
-basis-cli generate --lang ruby --spec basis.yaml --output generated/
+basis-cli generate --lang <python|rust|js|go|java|kotlin|swift|csharp|ruby> --spec basis.yaml --output generated/
 ```
 
 Each command produces a types file with newtype definitions, union declarations, and exhaustive match scaffolds in that language's idiom. The generated code passes `basis check` by construction.
