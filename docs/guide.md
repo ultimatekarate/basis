@@ -326,7 +326,7 @@ Checks for duplicate newtypes, duplicate union names, empty variant lists, unkno
 basis-cli generate --lang <python|rust|js|go|java|kotlin|swift|csharp|ruby> --spec basis.yaml --output generated/
 ```
 
-Each command produces a types file with newtype definitions, union declarations, and exhaustive match scaffolds in that language's idiom. The generated code passes `basis check` by construction.
+Produces a types file with newtype definitions, union declarations, and exhaustive match scaffolds in that language's idiom. The generated code passes `basis check` by construction.
 
 ### Generate a report
 
