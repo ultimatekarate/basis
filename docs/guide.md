@@ -123,6 +123,35 @@ Private functions are not checked. The boundary is at the public API.
 
 The `validation` field is optional. It's used by `basis generate` to emit TODO stubs for validation logic. It has no effect on `basis check`.
 
+#### Language Scoping
+
+By default, every newtype applies to every language in the repo. In polyglot codebases, some types only make sense in one language. Add `languages:` to restrict a newtype to specific languages:
+
+```yaml
+newtypes:
+  enabled: true
+  types:
+    # Shared across all languages
+    - name: UserId
+      wraps: string
+
+    # TypeScript only — Electron window handle
+    - name: WindowId
+      wraps: int
+      languages: [js]
+
+    # Python only — backend API key
+    - name: ApiKey
+      wraps: string
+      languages: [python]
+```
+
+When `languages:` is present, Basis only checks files in those languages for that newtype. `WindowId` scoped to `[js]` will not flag a Python function with a `window_id: str` parameter. `basis generate --lang python` will skip `WindowId` entirely.
+
+When `languages:` is omitted, the newtype applies to all languages. Existing specs work without changes.
+
+Valid language names: `python`, `rust`, `js`, `go`, `java`, `kotlin`, `swift`, `csharp`, `ruby`.
+
 #### Suppressing B002
 
 Not every raw primitive is primitive obsession. Parameters like `index`, `count`, `offset` are legitimately raw. Functions like `len` or `to_string` return primitives by nature. Basis provides three suppression mechanisms:
@@ -190,6 +219,26 @@ exhaustive_matching:
 Basis scans match/switch/when/case statements for partial coverage. If a `switch` handles `Pending`, `Confirmed`, and `Shipped` but not `Delivered` or `Cancelled`, and there's no default/wildcard branch, Basis reports the missing variants.
 
 A wildcard (`_`, `default`, `else`) suppresses the violation. Basis doesn't judge whether the wildcard is correct — only whether the cases are exhaustive.
+
+#### Language Scoping
+
+Like newtypes, unions can be scoped to specific languages:
+
+```yaml
+exhaustive_matching:
+  enabled: true
+  unions:
+    # Matched in all languages
+    - name: DocumentState
+      variants: [Draft, Review, Published, Archived]
+
+    # Python only — backend processing
+    - name: TaskStatus
+      languages: [python]
+      variants: [Queued, Running, Completed, Failed, Cancelled]
+```
+
+When `languages:` is omitted, the union applies to all languages. When present, Basis only checks match statements in files of those languages. `basis generate` skips unions that don't apply to the target language.
 
 ### Boundaries (Placement Axis)
 
@@ -337,6 +386,24 @@ The 50ms check time means the feedback loop is instant. Generate, check, fix, ch
 The spec is language-agnostic. `wraps: string` means `str` in Python, `String` in Rust, `string` in Go and TypeScript. The CLI maps the four axes to each language's idioms automatically.
 
 One `basis.yaml` can govern a polyglot repo. A Python service and a Rust library can share the same newtypes, the same unions, the same layer boundaries. `basis generate` produces the types in both languages. `basis check` verifies both. The architecture is provably isomorphic.
+
+In polyglot repos, some types are shared and some are language-specific. Use `languages:` on newtypes and unions to control scope:
+
+```yaml
+newtypes:
+  enabled: true
+  types:
+    - name: UserId            # all languages
+      wraps: string
+    - name: WindowId          # TypeScript only
+      wraps: int
+      languages: [js]
+    - name: ApiKey             # Python only
+      wraps: string
+      languages: [python]
+```
+
+Types without `languages:` apply everywhere. Types with `languages:` are checked and generated only for those languages. This prevents false positives — a Python backend won't be flagged for not using `WindowId`, and a TypeScript frontend won't be flagged for not using `ApiKey`.
 
 ## Choosing an Architecture Model
 

@@ -64,7 +64,15 @@ fn generate_text(spec: &BasisSpec) -> String {
                     .as_deref()
                     .map(|v| format!(" [{v}]"))
                     .unwrap_or_default();
-                out.push_str(&format!("  {} -> {}{}\n", nt.name, nt.wraps, validation));
+                let langs = nt
+                    .languages
+                    .as_ref()
+                    .map(|l| format!(" ({})", l.join(", ")))
+                    .unwrap_or_default();
+                out.push_str(&format!(
+                    "  {} -> {}{}{}\n",
+                    nt.name, nt.wraps, validation, langs
+                ));
             }
             out.push('\n');
         }
@@ -75,7 +83,12 @@ fn generate_text(spec: &BasisSpec) -> String {
         if exhaustive.enabled && !exhaustive.unions.is_empty() {
             out.push_str("== Unions (Completeness Axis) ==\n\n");
             for union_def in &exhaustive.unions {
-                out.push_str(&format!("  {}\n", union_def.name));
+                let langs = union_def
+                    .languages
+                    .as_ref()
+                    .map(|l| format!(" ({})", l.join(", ")))
+                    .unwrap_or_default();
+                out.push_str(&format!("  {}{}\n", union_def.name, langs));
                 for variant in &union_def.variants {
                     out.push_str(&format!("    - {variant}\n"));
                 }
@@ -189,6 +202,7 @@ mod tests {
                 name: "UserId".into(),
                 wraps: "string".into(),
                 validation: None,
+                languages: None,
             }],
             exclude_params: vec![],
             exclude_functions: vec![],
@@ -207,6 +221,7 @@ mod tests {
                 name: "UserId".into(),
                 wraps: "string".into(),
                 validation: None,
+                languages: None,
             }],
             exclude_params: vec![],
             exclude_functions: vec![],
@@ -222,8 +237,8 @@ mod tests {
             enabled: true,
             unions: vec![UnionDef {
                 name: "OrderStatus".into(),
-
                 variants: vec!["Pending".into(), "Shipped".into()],
+                languages: None,
             }],
         });
         let report = generate_report(&spec, "text");
@@ -281,6 +296,7 @@ mod tests {
                 name: "UserId".into(),
                 wraps: "string".into(),
                 validation: None,
+                languages: None,
             }],
             exclude_params: vec![],
             exclude_functions: vec![],

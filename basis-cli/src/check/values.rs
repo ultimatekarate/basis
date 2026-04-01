@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use crate::language::LangRegistry;
-use crate::spec::BasisSpec;
+use crate::spec::{applies_to_lang, BasisSpec};
 
 /// A value axis violation — raw primitive used where a branded newtype should be.
 pub struct Violation {
@@ -25,8 +25,44 @@ impl std::fmt::Display for Violation {
     }
 }
 
+/// Build a map from primitive type name → list of newtype names that wrap it,
+/// filtered to only include newtypes that apply to the given language.
+fn build_type_map_for_lang(
+    spec: &BasisSpec,
+    lang_name: &str,
+    lang_primitives: &[(&str, &[&str])],
+) -> HashMap<String, Vec<String>> {
+    let mut map: HashMap<String, Vec<String>> = HashMap::new();
+    if let Some(newtypes) = &spec.newtypes {
+        if !newtypes.enabled {
+            return map;
+        }
+        for nt in &newtypes.types {
+            if !applies_to_lang(&nt.languages, lang_name) {
+                continue;
+            }
+            for &(wraps_key, primitives) in lang_primitives {
+                if wraps_key == nt.wraps {
+                    for &prim in primitives {
+                        map.entry(prim.to_string())
+                            .or_default()
+                            .push(nt.name.clone());
+                    }
+                }
+            }
+        }
+    }
+    // Deduplicate
+    for names in map.values_mut() {
+        names.sort();
+        names.dedup();
+    }
+    map
+}
+
 /// Build a map from primitive type name → list of newtype names that wrap it.
-/// Reads primitive mappings from all languages' LangDef.primitives tables.
+/// Includes all newtypes across all languages (used by tests that don't need filtering).
+#[cfg(test)]
 fn build_type_map(spec: &BasisSpec, registry: &LangRegistry) -> HashMap<String, Vec<String>> {
     let mut map: HashMap<String, Vec<String>> = HashMap::new();
     if let Some(newtypes) = &spec.newtypes {
@@ -47,12 +83,29 @@ fn build_type_map(spec: &BasisSpec, registry: &LangRegistry) -> HashMap<String, 
             }
         }
     }
-    // Deduplicate: a newtype may appear multiple times if multiple langs share a primitive name
     for names in map.values_mut() {
         names.sort();
         names.dedup();
     }
     map
+}
+
+/// Build snake_case → newtypes lookup, filtered to a specific language.
+fn build_name_hints_for_lang(
+    spec: &BasisSpec,
+    lang_name: &str,
+) -> HashMap<String, Vec<String>> {
+    let mut name_hints: HashMap<String, Vec<String>> = HashMap::new();
+    if let Some(newtypes) = &spec.newtypes {
+        for nt in &newtypes.types {
+            if !applies_to_lang(&nt.languages, lang_name) {
+                continue;
+            }
+            let snake = to_snake_case(&nt.name);
+            name_hints.entry(snake).or_default().push(nt.name.clone());
+        }
+    }
+    name_hints
 }
 
 /// Convert PascalCase newtype name to snake_case for matching.
@@ -73,18 +126,23 @@ fn to_snake_case(name: &str) -> String {
 
 /// Check all source files for raw primitive usage at function boundaries.
 pub fn check_values(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -> Vec<Violation> {
-    let type_map = build_type_map(spec, registry);
-    if type_map.is_empty() {
+    // Quick check: are newtypes enabled at all?
+    let newtypes_enabled = spec
+        .newtypes
+        .as_ref()
+        .is_some_and(|n| n.enabled && !n.types.is_empty());
+    if !newtypes_enabled {
         return Vec::new();
     }
 
-    // Build snake_case → newtypes lookup for name matching
-    let mut name_hints: HashMap<String, Vec<String>> = HashMap::new();
-    if let Some(newtypes) = &spec.newtypes {
-        for nt in &newtypes.types {
-            let snake = to_snake_case(&nt.name);
-            name_hints.entry(snake).or_default().push(nt.name.clone());
-        }
+    // Build per-language type maps and name hints
+    let mut type_maps: HashMap<&str, HashMap<String, Vec<String>>> = HashMap::new();
+    let mut name_hints_map: HashMap<&str, HashMap<String, Vec<String>>> = HashMap::new();
+    for lang in registry.all() {
+        let tm = build_type_map_for_lang(spec, lang.name, lang.primitives);
+        let nh = build_name_hints_for_lang(spec, lang.name);
+        type_maps.insert(lang.name, tm);
+        name_hints_map.insert(lang.name, nh);
     }
 
     // Build exclusion sets from spec
@@ -113,13 +171,23 @@ pub fn check_values(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -> V
             return;
         };
 
+        // Get the per-language type map and name hints
+        let Some(type_map) = type_maps.get(lang.name) else {
+            return;
+        };
+        if type_map.is_empty() {
+            return;
+        }
+        let empty_hints = HashMap::new();
+        let name_hints = name_hints_map.get(lang.name).unwrap_or(&empty_hints);
+
         let content = match std::fs::read_to_string(file_path) {
             Ok(c) => c,
             Err(_) => return,
         };
 
         let mut hits = Vec::new();
-        (lang.scan_signatures)(&content, &rel, &type_map, &name_hints, &mut hits);
+        (lang.scan_signatures)(&content, &rel, type_map, name_hints, &mut hits);
 
         // Filter: exclude_params, exclude_functions, inline basis:allow(B002)
         let lines: Vec<&str> = content.lines().collect();
@@ -249,11 +317,13 @@ mod tests {
                         name: "UserId".into(),
                         wraps: "string".into(),
                         validation: None,
+                        languages: None,
                     },
                     crate::spec::NewtypeDef {
                         name: "OrderId".into(),
                         wraps: "string".into(),
                         validation: None,
+                        languages: None,
                     },
                 ],
                 exclude_params: vec![],
@@ -285,6 +355,7 @@ mod tests {
                     name: "UserId".into(),
                     wraps: "string".into(),
                     validation: None,
+                    languages: None,
                 }],
                 exclude_params: vec![],
                 exclude_functions: vec![],

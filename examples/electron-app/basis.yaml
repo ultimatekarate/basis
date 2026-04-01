@@ -1,0 +1,219 @@
+governance:
+  version: "1.0"
+
+# ── Example: Polyglot Electron application ─────────────────────────
+#
+# A desktop app with:
+#   - Python backend (API server, data processing)
+#   - TypeScript/Electron frontend (UI, main process, renderer)
+#   - Shared domain types across both languages
+#
+# One spec governs both languages. `basis generate` produces
+# isomorphic type definitions in Python and TypeScript.
+
+# ── Layers ────────────────────────────────────────────────────────────
+
+layers:
+  domain:
+    role: "Shared data types. Defined once, generated into both languages."
+    packages:
+      - "shared/models"
+      - "backend/models"
+      - "frontend/src/shared"
+    rules:
+      purity: strict
+    depends_on: []
+
+  engine:
+    role: "Pure logic. Analysis, transformation, validation. Python."
+    packages:
+      - "backend/engine"
+      - "backend/analysis"
+    rules:
+      purity: strict
+    depends_on:
+      - domain
+
+  renderer:
+    role: "UI components. React/Svelte in the Electron renderer process."
+    packages:
+      - "frontend/src/renderer"
+      - "frontend/src/components"
+    rules:
+      purity: strict          # no Node APIs in the renderer
+    depends_on:
+      - domain
+
+  main-process:
+    role: "Electron main process. IPC, window management, system tray."
+    packages:
+      - "frontend/src/main"
+    depends_on:
+      - domain
+      - renderer              # may reference renderer entry points
+
+  backend-api:
+    role: "Python API server. HTTP, filesystem, database, subprocess."
+    packages:
+      - "backend/api"
+      - "backend/storage"
+      - "backend/workers"
+    depends_on:
+      - domain
+      - engine
+
+# ── Values Axis ───────────────────────────────────────────────────────
+
+newtypes:
+  enabled: true
+  exclude_params: [index, count, offset, size, length, capacity, width, height]
+  exclude_functions: [len, to_string, default, str, repr]
+  types:
+    # Domain identifiers — shared across Python and TypeScript
+    - name: ProjectId
+      wraps: string
+      validation: "uuid_v4"
+    - name: UserId
+      wraps: string
+      validation: "uuid_v4"
+    - name: DocumentId
+      wraps: string
+      validation: "uuid_v4"
+    - name: SessionToken
+      wraps: string
+
+    # Electron-specific (TypeScript only)
+    - name: WindowId
+      wraps: int
+      languages: [js]
+    - name: ChannelName
+      wraps: string
+      languages: [js]
+
+    # Backend-specific (Python only)
+    - name: ApiKey
+      wraps: string
+      languages: [python]
+    - name: FilePath
+      wraps: string
+      languages: [python]
+
+# ── Completeness Axis ─────────────────────────────────────────────────
+
+exhaustive_matching:
+  enabled: true
+  unions:
+    # IPC messages — matched on both sides of the bridge
+    - name: IpcMessage
+      variants:
+        - OpenProject
+        - SaveProject
+        - ExportDocument
+        - SyncStatus
+        - Shutdown
+
+    # Document states — used in both renderer UI and backend logic
+    - name: DocumentState
+      variants:
+        - Draft
+        - Review
+        - Published
+        - Archived
+
+    # Backend processing status (Python only)
+    - name: TaskStatus
+      languages: [python]
+      variants:
+        - Queued
+        - Running
+        - Completed
+        - Failed
+        - Cancelled
+
+# ── Purity Axis ───────────────────────────────────────────────────────
+
+purity:
+  enabled: true
+  # Forbidden in domain, engine, and renderer layers.
+  # The renderer prohibition is the critical Electron boundary:
+  # renderer code must not touch Node.js APIs directly.
+  forbidden_in_strict:
+    - "file_io"
+    - "network_io"
+    - "database"
+    - "stdout"
+    - "stderr"
+    - "env_vars"
+    - "system_clock"
+    - "subprocess"
+    - "process"
+    - "dynamic_execution"
+
+# ── Placement Axis ────────────────────────────────────────────────────
+
+boundaries:
+  enabled: true
+  rules:
+    # Domain is the root — depends on nothing
+    - from: domain
+      to: engine
+      action: deny
+    - from: domain
+      to: renderer
+      action: deny
+    - from: domain
+      to: main-process
+      action: deny
+    - from: domain
+      to: backend-api
+      action: deny
+
+    # Engine is pure Python logic — no UI, no IO
+    - from: engine
+      to: renderer
+      action: deny
+      reason: "Python engine cannot import TypeScript renderer"
+    - from: engine
+      to: main-process
+      action: deny
+    - from: engine
+      to: backend-api
+      action: deny
+
+    # Renderer cannot reach into backend or main process
+    - from: renderer
+      to: main-process
+      action: deny
+      reason: "Renderer communicates with main process via IPC, not imports"
+    - from: renderer
+      to: engine
+      action: deny
+      reason: "Renderer cannot import Python engine"
+    - from: renderer
+      to: backend-api
+      action: deny
+      reason: "Renderer talks to backend via HTTP, not imports"
+
+    # Main process orchestrates but doesn't contain logic
+    - from: main-process
+      to: engine
+      action: deny
+    - from: main-process
+      to: backend-api
+      action: deny
+
+  # External dependency restrictions
+  external:
+    domain:
+      allow: ["pydantic", "dataclasses"]
+      deny_patterns: ["fastapi", "sqlalchemy", "electron", "fs", "child_process"]
+    engine:
+      allow: ["pydantic", "numpy", "pandas"]
+      deny_patterns: ["fastapi", "sqlalchemy", "requests", "httpx", "subprocess"]
+    renderer:
+      allow: ["react", "svelte", "@tanstack/*", "zustand"]
+      deny_patterns: ["fs", "child_process", "electron/main", "node:*", "better-sqlite3"]
+    main-process:
+      allow: ["electron", "electron-store", "better-sqlite3"]
+    backend-api:
+      allow: ["*"]

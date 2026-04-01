@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::spec::BasisSpec;
+use crate::spec::{BasisSpec, KNOWN_LANGUAGES};
 
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
@@ -155,6 +155,28 @@ fn validate_boundaries(spec: &BasisSpec, errors: &mut Vec<ValidationError>) {
     }
 }
 
+fn validate_languages(
+    languages: &Option<Vec<String>>,
+    kind: &str,
+    name: &str,
+    errors: &mut Vec<ValidationError>,
+) {
+    if let Some(langs) = languages {
+        if langs.is_empty() {
+            errors.push(ValidationError(format!(
+                "{kind} '{name}' has empty languages list (applies to no language)"
+            )));
+        }
+        for lang in langs {
+            if !KNOWN_LANGUAGES.contains(&lang.as_str()) {
+                errors.push(ValidationError(format!(
+                    "{kind} '{name}' references unknown language '{lang}'"
+                )));
+            }
+        }
+    }
+}
+
 fn validate_newtypes(spec: &BasisSpec, errors: &mut Vec<ValidationError>) {
     let Some(newtypes) = &spec.newtypes else {
         return;
@@ -168,6 +190,7 @@ fn validate_newtypes(spec: &BasisSpec, errors: &mut Vec<ValidationError>) {
                 nt.name
             )));
         }
+        validate_languages(&nt.languages, "newtype", &nt.name, errors);
     }
 }
 
@@ -191,6 +214,7 @@ fn validate_unions(spec: &BasisSpec, errors: &mut Vec<ValidationError>) {
                 union_def.name
             )));
         }
+        validate_languages(&union_def.languages, "union", &union_def.name, errors);
     }
 }
 
@@ -383,11 +407,13 @@ mod tests {
                     name: "UserId".into(),
                     wraps: "string".into(),
                     validation: None,
+                    languages: None,
                 },
                 NewtypeDef {
                     name: "OrderId".into(),
                     wraps: "string".into(),
                     validation: None,
+                    languages: None,
                 },
             ],
             exclude_params: vec![],
@@ -406,11 +432,13 @@ mod tests {
                     name: "UserId".into(),
                     wraps: "string".into(),
                     validation: None,
+                    languages: None,
                 },
                 NewtypeDef {
                     name: "UserId".into(),
                     wraps: "int".into(),
                     validation: None,
+                    languages: None,
                 },
             ],
             exclude_params: vec![],
@@ -437,10 +465,12 @@ mod tests {
                 UnionDef {
                     name: "A".into(),
                     variants: vec!["X".into()],
+                    languages: None,
                 },
                 UnionDef {
                     name: "B".into(),
                     variants: vec!["Y".into()],
+                    languages: None,
                 },
             ],
         });
@@ -456,10 +486,12 @@ mod tests {
                 UnionDef {
                     name: "A".into(),
                     variants: vec!["X".into()],
+                    languages: None,
                 },
                 UnionDef {
                     name: "A".into(),
                     variants: vec!["Y".into()],
+                    languages: None,
                 },
             ],
         });
@@ -477,11 +509,103 @@ mod tests {
             unions: vec![UnionDef {
                 name: "Empty".into(),
                 variants: vec![],
+                languages: None,
             }],
         });
         let errors = validate(&spec);
         assert!(errors
             .iter()
             .any(|e| format!("{e}").contains("no variants")));
+    }
+
+    #[test]
+    fn newtype_valid_languages_passes() {
+        let mut spec = minimal_spec();
+        spec.newtypes = Some(NewtypeConfig {
+            enabled: true,
+            types: vec![NewtypeDef {
+                name: "WindowId".into(),
+                wraps: "int".into(),
+                validation: None,
+                languages: Some(vec!["js".into(), "python".into()]),
+            }],
+            exclude_params: vec![],
+            exclude_functions: vec![],
+        });
+        assert!(validate(&spec).is_empty());
+    }
+
+    #[test]
+    fn newtype_unknown_language_fails() {
+        let mut spec = minimal_spec();
+        spec.newtypes = Some(NewtypeConfig {
+            enabled: true,
+            types: vec![NewtypeDef {
+                name: "WindowId".into(),
+                wraps: "int".into(),
+                validation: None,
+                languages: Some(vec!["typescript".into()]),
+            }],
+            exclude_params: vec![],
+            exclude_functions: vec![],
+        });
+        let errors = validate(&spec);
+        assert!(errors
+            .iter()
+            .any(|e| format!("{e}").contains("unknown language 'typescript'")));
+    }
+
+    #[test]
+    fn newtype_empty_languages_fails() {
+        let mut spec = minimal_spec();
+        spec.newtypes = Some(NewtypeConfig {
+            enabled: true,
+            types: vec![NewtypeDef {
+                name: "WindowId".into(),
+                wraps: "int".into(),
+                validation: None,
+                languages: Some(vec![]),
+            }],
+            exclude_params: vec![],
+            exclude_functions: vec![],
+        });
+        let errors = validate(&spec);
+        assert!(errors
+            .iter()
+            .any(|e| format!("{e}").contains("empty languages list")));
+    }
+
+    #[test]
+    fn union_unknown_language_fails() {
+        let mut spec = minimal_spec();
+        spec.exhaustive_matching = Some(ExhaustiveConfig {
+            enabled: true,
+            unions: vec![UnionDef {
+                name: "Status".into(),
+                variants: vec!["A".into()],
+                languages: Some(vec!["cplusplus".into()]),
+            }],
+        });
+        let errors = validate(&spec);
+        assert!(errors
+            .iter()
+            .any(|e| format!("{e}").contains("unknown language 'cplusplus'")));
+    }
+
+    #[test]
+    fn union_empty_languages_fails() {
+        let mut spec = minimal_spec();
+        spec.exhaustive_matching = Some(ExhaustiveConfig {
+            enabled: true,
+            unions: vec![UnionDef {
+                name: "Status".into(),
+                variants: vec!["A".into()],
+                languages: Some(vec![]),
+            }],
+        });
+        let errors = validate(&spec);
+        assert!(errors
+            .iter()
+            .any(|e| format!("{e}").contains("empty languages list")));
     }
 }

@@ -59,6 +59,8 @@ pub struct NewtypeDef {
     pub wraps: String,
     #[serde(default)]
     pub validation: Option<String>,
+    #[serde(default)]
+    pub languages: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -72,6 +74,8 @@ pub struct ExhaustiveConfig {
 pub struct UnionDef {
     pub name: String,
     pub variants: Vec<String>,
+    #[serde(default)]
+    pub languages: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -107,6 +111,19 @@ pub struct ExternalRules {
     pub deny_patterns: Vec<String>,
 }
 
+pub const KNOWN_LANGUAGES: &[&str] = &[
+    "python", "rust", "js", "go", "java", "kotlin", "ruby", "swift", "csharp",
+];
+
+/// Check whether a type definition applies to a given language.
+/// `None` means "all languages" (backward compatible default).
+pub fn applies_to_lang(languages: &Option<Vec<String>>, lang_name: &str) -> bool {
+    match languages {
+        None => true,
+        Some(langs) => langs.iter().any(|l| l == lang_name),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -135,5 +152,60 @@ mod tests {
         let spec: BasisSpec = serde_yaml::from_str(yaml).unwrap();
         assert!(spec.layers.contains_key("dict"));
         assert_eq!(spec.newtypes.unwrap().types[0].name, "UserId");
+    }
+
+    #[test]
+    fn deserialize_newtype_with_languages() {
+        let yaml = r#"
+governance:
+  version: "1.0"
+newtypes:
+  enabled: true
+  types:
+    - name: WindowId
+      wraps: int
+      languages: [js]
+    - name: UserId
+      wraps: string
+"#;
+        let spec: BasisSpec = serde_yaml::from_str(yaml).unwrap();
+        let types = &spec.newtypes.unwrap().types;
+        assert_eq!(types[0].languages, Some(vec!["js".to_string()]));
+        assert_eq!(types[1].languages, None);
+    }
+
+    #[test]
+    fn deserialize_union_with_languages() {
+        let yaml = r#"
+governance:
+  version: "1.0"
+exhaustive_matching:
+  enabled: true
+  unions:
+    - name: TaskStatus
+      languages: [python]
+      variants: [Queued, Running]
+    - name: IpcMessage
+      variants: [Open, Close]
+"#;
+        let spec: BasisSpec = serde_yaml::from_str(yaml).unwrap();
+        let unions = &spec.exhaustive_matching.unwrap().unions;
+        assert_eq!(unions[0].languages, Some(vec!["python".to_string()]));
+        assert_eq!(unions[1].languages, None);
+    }
+
+    #[test]
+    fn applies_to_lang_none_matches_all() {
+        assert!(applies_to_lang(&None, "python"));
+        assert!(applies_to_lang(&None, "js"));
+    }
+
+    #[test]
+    fn applies_to_lang_some_filters() {
+        let langs = Some(vec!["python".to_string(), "js".to_string()]);
+        assert!(applies_to_lang(&langs, "python"));
+        assert!(applies_to_lang(&langs, "js"));
+        assert!(!applies_to_lang(&langs, "rust"));
+        assert!(!applies_to_lang(&langs, "go"));
     }
 }

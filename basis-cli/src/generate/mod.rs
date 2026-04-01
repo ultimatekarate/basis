@@ -1,5 +1,5 @@
 use crate::language::LangDef;
-use crate::spec::BasisSpec;
+use crate::spec::{applies_to_lang, BasisSpec};
 
 #[derive(Debug)]
 pub struct GeneratedFile {
@@ -16,14 +16,15 @@ fn resolve_preferred<'a>(lang: &'a LangDef, canonical: &'a str) -> &'a str {
 }
 
 pub fn generate(spec: &BasisSpec, lang: &LangDef) -> Result<Vec<GeneratedFile>, String> {
-    let has_newtypes = spec
-        .newtypes
-        .as_ref()
-        .map_or(false, |n| n.enabled && !n.types.is_empty());
-    let has_unions = spec
-        .exhaustive_matching
-        .as_ref()
-        .map_or(false, |e| e.enabled && !e.unions.is_empty());
+    let has_newtypes = spec.newtypes.as_ref().is_some_and(|n| {
+        n.enabled && n.types.iter().any(|nt| applies_to_lang(&nt.languages, lang.name))
+    });
+    let has_unions = spec.exhaustive_matching.as_ref().is_some_and(|e| {
+        e.enabled
+            && e.unions
+                .iter()
+                .any(|u| applies_to_lang(&u.languages, lang.name))
+    });
 
     if has_newtypes && lang.generate_newtype.is_none() {
         return Err(format!(
@@ -61,6 +62,9 @@ pub fn generate(spec: &BasisSpec, lang: &LangDef) -> Result<Vec<GeneratedFile>, 
             let gen = lang.generate_newtype.unwrap();
             body.push_str(&format!("{} ── Newtypes ──\n\n", lang.comment_prefix));
             for nt in &newtypes.types {
+                if !applies_to_lang(&nt.languages, lang.name) {
+                    continue;
+                }
                 let prim = resolve_preferred(lang, &nt.wraps);
                 body.push_str(&gen(&nt.name, prim, nt.validation.as_deref()));
                 body.push('\n');
@@ -75,6 +79,9 @@ pub fn generate(spec: &BasisSpec, lang: &LangDef) -> Result<Vec<GeneratedFile>, 
             let gen_match = lang.generate_match_scaffold.unwrap();
             body.push_str(&format!("{} ── Unions ──\n\n", lang.comment_prefix));
             for union_def in &exhaustive.unions {
+                if !applies_to_lang(&union_def.languages, lang.name) {
+                    continue;
+                }
                 body.push_str(&gen_union(&union_def.name, &union_def.variants));
                 body.push('\n');
                 body.push_str(&gen_match(&union_def.name, &union_def.variants));
@@ -111,16 +118,19 @@ mod tests {
                         name: "UserId".to_string(),
                         wraps: "string".to_string(),
                         validation: Some("uuid_v4".to_string()),
+                        languages: None,
                     },
                     NewtypeDef {
                         name: "OrderId".to_string(),
                         wraps: "string".to_string(),
                         validation: Some("uuid_v4".to_string()),
+                        languages: None,
                     },
                     NewtypeDef {
                         name: "Amount".to_string(),
                         wraps: "float".to_string(),
                         validation: None,
+                        languages: None,
                     },
                 ],
                 exclude_params: vec![],
@@ -137,11 +147,51 @@ mod tests {
                         "Delivered".to_string(),
                         "Cancelled".to_string(),
                     ],
+                    languages: None,
                 }],
             }),
             purity: None,
             boundaries: None,
         }
+    }
+
+    #[test]
+    fn generate_skips_language_scoped_newtype() {
+        let registry = LangRegistry::new();
+        let lang = registry.for_name("python").unwrap();
+        let mut spec = test_spec();
+        // Add a JS-only newtype
+        if let Some(newtypes) = &mut spec.newtypes {
+            newtypes.types.push(NewtypeDef {
+                name: "WindowId".to_string(),
+                wraps: "int".to_string(),
+                validation: None,
+                languages: Some(vec!["js".to_string()]),
+            });
+        }
+        let files = generate(&spec, lang).unwrap();
+        let c = &files[0].content;
+        assert!(c.contains("UserId"), "unscoped type should be present");
+        assert!(!c.contains("WindowId"), "JS-only type should be skipped for Python");
+    }
+
+    #[test]
+    fn generate_skips_language_scoped_union() {
+        let registry = LangRegistry::new();
+        let lang = registry.for_name("python").unwrap();
+        let mut spec = test_spec();
+        // Add a JS-only union
+        if let Some(exhaustive) = &mut spec.exhaustive_matching {
+            exhaustive.unions.push(UnionDef {
+                name: "IpcMessage".to_string(),
+                variants: vec!["Open".to_string(), "Close".to_string()],
+                languages: Some(vec!["js".to_string()]),
+            });
+        }
+        let files = generate(&spec, lang).unwrap();
+        let c = &files[0].content;
+        assert!(c.contains("OrderStatus"), "unscoped union should be present");
+        assert!(!c.contains("IpcMessage"), "JS-only union should be skipped for Python");
     }
 
     #[test]

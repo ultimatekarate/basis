@@ -2,7 +2,12 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use crate::language::LangRegistry;
-use crate::spec::BasisSpec;
+use crate::spec::{applies_to_lang, BasisSpec};
+
+/// Variant index: variant name → (union name, all variants in that union).
+type VariantIndex = HashMap<String, (String, HashSet<String>)>;
+/// Union map: union name → set of all variants.
+type UnionMap = HashMap<String, HashSet<String>>;
 
 /// A completeness violation — match/switch doesn't cover all union variants.
 pub struct Violation {
@@ -25,24 +30,34 @@ impl std::fmt::Display for Violation {
     }
 }
 
-/// Build a map from variant name → (union_name, all variants in that union).
-fn build_variant_index(spec: &BasisSpec) -> HashMap<String, (String, HashSet<String>)> {
-    let mut index: HashMap<String, (String, HashSet<String>)> = HashMap::new();
+/// Build variant index and union map filtered to unions that apply to a specific language.
+fn build_indices_for_lang(
+    spec: &BasisSpec,
+    lang_name: &str,
+) -> (VariantIndex, UnionMap) {
+    let mut variant_index: VariantIndex = HashMap::new();
+    let mut union_map: UnionMap = HashMap::new();
+
     if let Some(exhaustive) = &spec.exhaustive_matching {
         if !exhaustive.enabled {
-            return index;
+            return (variant_index, union_map);
         }
         for union_def in &exhaustive.unions {
+            if !applies_to_lang(&union_def.languages, lang_name) {
+                continue;
+            }
             let variant_set: HashSet<String> = union_def.variants.iter().cloned().collect();
             for variant in &union_def.variants {
-                index.insert(
+                variant_index.insert(
                     variant.clone(),
                     (union_def.name.clone(), variant_set.clone()),
                 );
             }
+            union_map.insert(union_def.name.clone(), variant_set);
         }
     }
-    index
+
+    (variant_index, union_map)
 }
 
 /// Check all source files for non-exhaustive match/switch statements.
@@ -51,20 +66,20 @@ pub fn check_completeness(
     root: &Path,
     registry: &LangRegistry,
 ) -> Vec<Violation> {
-    let variant_index = build_variant_index(spec);
-    if variant_index.is_empty() {
+    // Quick check: is exhaustive matching enabled at all?
+    let enabled = spec
+        .exhaustive_matching
+        .as_ref()
+        .is_some_and(|e| e.enabled && !e.unions.is_empty());
+    if !enabled {
         return Vec::new();
     }
 
-    // Also build union_name → variants for direct lookup
-    let mut union_map: HashMap<String, HashSet<String>> = HashMap::new();
-    if let Some(exhaustive) = &spec.exhaustive_matching {
-        for union_def in &exhaustive.unions {
-            union_map.insert(
-                union_def.name.clone(),
-                union_def.variants.iter().cloned().collect(),
-            );
-        }
+    // Build per-language indices
+    let mut lang_indices: HashMap<&str, (VariantIndex, UnionMap)> = HashMap::new();
+    for lang in registry.all() {
+        let indices = build_indices_for_lang(spec, lang.name);
+        lang_indices.insert(lang.name, indices);
     }
 
     let mut violations = Vec::new();
@@ -80,13 +95,20 @@ pub fn check_completeness(
             return;
         };
 
+        let Some((variant_index, union_map)) = lang_indices.get(lang.name) else {
+            return;
+        };
+        if variant_index.is_empty() {
+            return;
+        }
+
         let content = match std::fs::read_to_string(file_path) {
             Ok(c) => c,
             Err(_) => return,
         };
 
         let mut hits = Vec::new();
-        (lang.scan_matches)(&content, &rel, &variant_index, &union_map, &mut hits);
+        (lang.scan_matches)(&content, &rel, variant_index, union_map, &mut hits);
 
         for hit in hits {
             violations.push(Violation {

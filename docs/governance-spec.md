@@ -140,6 +140,8 @@ newtypes:
   types:
     # Define domain-specific newtypes that prevent primitive obsession.
     # Each newtype wraps a base type and optionally specifies validation.
+    # Optional: languages: [python, js, ...] restricts the type to
+    # specific languages. Omit for types shared across all languages.
     - name: Did
       wraps: string
       validation: "starts_with('did:key:')"
@@ -161,6 +163,8 @@ exhaustive_matching:
   # Tagged unions / discriminated unions / enums must be matched exhaustively.
   # Adding a new variant must cause a compile-time or lint-time error at
   # every consumption site.
+  # Optional: languages: [python, js, ...] restricts the union to
+  # specific languages. Omit for unions shared across all languages.
   unions:
     - name: NetworkEvent
       location: "dictionary"
