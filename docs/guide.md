@@ -379,24 +379,61 @@ Add to `.pre-commit-config.yaml`:
 
 ### Claude Code
 
-Basis works with Claude Code out of the box. When Claude writes code that violates `basis.yaml`, the error appears immediately. Claude reads the `help:` line, fixes the code, and moves on. The architecture enforces itself at write-time.
+Add this to your project's `CLAUDE.md`:
 
-This is the key difference: most governance catches violations at review time, when the code is already written. CI catches them at commit time. Basis with Claude Code catches them at write-time — violations are rejected before the code exists.
+```markdown
+## Architecture
 
-## Integrating with LLMs
+This project uses Basis for architectural governance. The spec is `basis.yaml`.
 
-Basis is designed as a plug-in for LLM-assisted development. The workflow:
+### Rules
 
-1. **Define the spec** — `basis.yaml` describes the architecture
-2. **Generate skeletons** — `basis generate` produces type-safe scaffolds
-3. **LLM fills logic** — the LLM writes implementation inside the scaffolds
-4. **Basis verifies** — `basis check` rejects anything structurally wrong
-5. **LLM fixes** — the LLM reads the error, reads the `help:` line, corrects the code
-6. **Loop until clean** — typically 1-2 iterations
+1. **Run `basis-cli check --spec basis.yaml .` after writing or modifying code.** Violations are errors, not warnings. Fix them before moving on.
+2. **Read the `help:` line** in each error — it tells you exactly what to do.
+3. **Never work around a violation.** Do not suppress checks, add exceptions, or restructure code to avoid detection. Fix the root cause.
+
+### Error codes
+
+| Code | Axis | Fix |
+|------|------|-----|
+| `B001` | Placement | Move code to correct layer or update `depends_on` |
+| `B002` | Values | Use the branded newtype (`UserId` not `str`) |
+| `B003` | Completeness | Add missing case arms or wildcard |
+| `B004` | Purity | Move IO code to a non-strict layer |
+
+### Layer placement
+
+Before writing code, determine which layer it belongs in by reading the
+`role` field of each layer in `basis.yaml`. Place the file in the correct
+package directory. If unsure, check `depends_on` — a file cannot import
+from a layer it does not depend on.
+```
+
+That's it. Claude reads `CLAUDE.md` at the start of every session, runs `basis check` after writing code, reads the error and `help:` line, fixes the violation, and re-checks. The loop is typically 1-2 iterations.
+
+The key difference from other governance approaches: most catch violations at review time, when the code is already written. CI catches them at commit time. Basis with Claude Code catches them at write-time — violations are rejected before the code exists.
+
+#### What Claude sees
+
+When Claude writes a function `def get_user(user_id: str)` in a codebase where `UserId` wraps `string`:
+
+```
+error[B002]: parameter 'user_id' uses raw 'str' instead of branded newtype
+  --> src/api/routes.py:14
+  = help: use UserId instead of str
+```
+
+Claude reads the `help:` line, changes `str` to `UserId`, and re-runs the check. No ambiguity, no judgment call — the error tells Claude exactly what to do.
+
+#### Why this works
 
 LLMs are good at logic. They're bad at discipline. They'll write brilliant algorithms and then import `requests` in your domain layer, use a raw `str` where you defined `UserId`, or handle 4 of 5 enum variants. These are exactly the mistakes Basis catches — structural violations that the LLM doesn't notice because the spec isn't in its attention window at line 47.
 
-The 50ms check time means the feedback loop is instant. Generate, check, fix, check. No waiting.
+The 50ms check time means the feedback loop is instant. Write, check, fix, check. No waiting.
+
+## Integrating with Other LLMs
+
+The Claude Code pattern above works with any LLM tool that can run shell commands and read output. The integration is always the same: tell the LLM to run `basis-cli check --spec basis.yaml .` after writing code, read the error, fix the violation, re-check. The `help:` line in each error is written for machines as much as humans.
 
 ## Cross-Language Governance
 

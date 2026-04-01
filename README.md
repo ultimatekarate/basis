@@ -1,6 +1,8 @@
 # Basis
 
-Compiler-enforced architectural governance. One YAML file. Nine languages. 50ms.
+LLMs amplify whatever the developer already is. Good architecture plus LLM produces correct code at machine speed. Bad architecture plus LLM produces incorrect code at machine speed.
+
+Basis makes the architecture enforceable. You define your architectural rules in a single `basis.yaml`. Basis rejects any code — human or AI-generated — that violates them. Wrong imports, raw primitives where branded types are required, missing enum arms, IO in a pure layer — all caught before the code is committed.
 
 ```
 error[B002]: parameter 'user_id' uses raw 'str' instead of branded newtype
@@ -15,11 +17,9 @@ error[B003]: match on 'OrderStatus' is not exhaustive
 error: aborting due to 2 basis violation(s)
 ```
 
-## What Basis Does
+## Four Axes
 
-You define your architecture in `basis.yaml`. Basis rejects any code that violates it.
-
-Four axes, each independent:
+Every architectural governance rule reduces to a constraint along one of four independent axes:
 
 | Axis | Governs | Error |
 | ------ | --------- | ------- |
@@ -28,9 +28,7 @@ Four axes, each independent:
 | **Completeness** | Case handling — every union variant must be addressed | B003 |
 | **Purity** | Side effects — a pure layer cannot perform IO | B004 |
 
-## Basis Is a Compiler
-
-Not a linter. Violations are errors, not warnings. `basis check` returns a non-zero exit code. CI blocks the merge. The architecture cannot decay.
+Violations are compiler errors, not warnings. `basis check` returns a non-zero exit code. CI blocks the merge. The architecture cannot decay.
 
 ## Languages
 
@@ -106,7 +104,7 @@ basis-cli check --spec basis.yaml .
 
 ## Self-Governance
 
-Basis governs itself. The repo's own `basis.yaml` defines four layers (dictionary, laboratory, spec-loader, basis-runner) and checks pass on every commit. 4,227 lines of production code, 2,900 lines of tests, 223 tests total.
+Basis governs itself. The repo's own `basis.yaml` defines four layers (dictionary, laboratory, spec-loader, basis-runner) and enforces all four axes on every commit. 340 tests.
 
 ## Spec Reference
 

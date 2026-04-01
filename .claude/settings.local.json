@@ -79,7 +79,8 @@
       "Bash(grep -v \"//\")",
       "Bash(for checker:*)",
       "Bash(do echo:*)",
-      "Read(//c/Users/joevo/git-repo/basis/basis-cli/src/check/**)"
+      "Read(//c/Users/joevo/git-repo/basis/basis-cli/src/check/**)",
+      "Bash(xargs wc:*)"
     ]
   }
 }
