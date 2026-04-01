@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Clippy
+        run: cargo clippy --manifest-path basis-cli/Cargo.toml -- -D warnings
+
+      - name: Build basis-cli
+        run: cargo build --manifest-path basis-cli/Cargo.toml
+
+      - name: Test basis-cli
+        run: cargo test --manifest-path basis-cli/Cargo.toml
+
+      - name: Self-check
+        run: cargo run --manifest-path basis-cli/Cargo.toml -- check --spec basis.yaml .

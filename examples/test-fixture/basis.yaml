@@ -1,0 +1,96 @@
+governance:
+  version: "1.0"
+  model: linguistic
+
+layers:
+  dictionary:
+    role: "Data types"
+    packages:
+      - "src/models"
+    rules:
+      purity: strict
+    depends_on: []
+
+  laboratory:
+    role: "Pure logic"
+    packages:
+      - "src/logic"
+    rules:
+      purity: strict
+    depends_on:
+      - dictionary
+
+  hands:
+    role: "IO and side effects"
+    packages:
+      - "src/api"
+    rules:
+      purity: relaxed
+    depends_on:
+      - dictionary
+      - laboratory
+
+newtypes:
+  enabled: true
+  types:
+    - name: UserId
+      wraps: string
+    - name: OrderId
+      wraps: string
+    - name: EmailAddress
+      wraps: string
+
+exhaustive_matching:
+  enabled: true
+  unions:
+    - name: OrderStatus
+      variants:
+        - Pending
+        - Confirmed
+        - Shipped
+        - Delivered
+        - Cancelled
+    - name: PaymentMethod
+      variants:
+        - CreditCard
+        - DebitCard
+        - PayPal
+        - BankTransfer
+
+purity:
+  enabled: true
+  forbidden_in_strict:
+    - "file_io"
+    - "network_io"
+    - "stdout"
+
+boundaries:
+  enabled: true
+  rules:
+    - from: dictionary
+      to: laboratory
+      action: deny
+      reason: "Dictionary cannot depend on Laboratory"
+    - from: dictionary
+      to: hands
+      action: deny
+      reason: "Dictionary cannot depend on Hands"
+    - from: laboratory
+      to: hands
+      action: deny
+      reason: "Laboratory cannot depend on Hands"
+    - from: hands
+      to: dictionary
+      action: allow
+    - from: hands
+      to: laboratory
+      action: allow
+  external:
+    dictionary:
+      allow: ["dataclasses", "typing"]
+      deny_patterns: ["requests", "sqlalchemy", "os"]
+    laboratory:
+      allow: ["dataclasses", "typing", "re"]
+      deny_patterns: ["requests", "sqlalchemy", "os"]
+    hands:
+      allow: ["*"]

@@ -1,0 +1,104 @@
+governance:
+  version: "1.0"
+  model: linguistic
+
+# ── Example: E-commerce application ──────────────────────────────────
+
+layers:
+  dictionary:
+    role: "Inert nouns. Data types, identifiers, configuration structures."
+    packages:
+      - "src/models"
+      - "src/types"
+    rules:
+      purity: strict
+      io: forbidden
+      network: forbidden
+      database: forbidden
+      async: forbidden
+    depends_on: []
+
+  laboratory:
+    role: "Pure logic. Verification, analysis, transformation."
+    packages:
+      - "src/analysis"
+      - "src/validation"
+    rules:
+      purity: strict
+      io: forbidden
+      network: forbidden
+      database: forbidden
+      async: forbidden
+    depends_on:
+      - dictionary
+
+  hands:
+    role: "Physical action. IO, networking, storage, user interaction."
+    packages:
+      - "src/api"
+      - "src/storage"
+      - "src/transport"
+    rules:
+      purity: relaxed
+      io: allowed
+      network: allowed
+      database: allowed
+      async: allowed
+    depends_on:
+      - dictionary
+      - laboratory
+
+newtypes:
+  enabled: true
+  types:
+    - name: UserId
+      wraps: string
+      validation: "uuid_v4"
+    - name: OrderId
+      wraps: string
+      validation: "uuid_v4"
+    - name: EmailAddress
+      wraps: string
+      validation: "email"
+
+exhaustive_matching:
+  enabled: true
+  unions:
+    - name: OrderStatus
+      variants:
+        - Pending
+        - Confirmed
+        - Shipped
+        - Delivered
+        - Cancelled
+
+purity:
+  enabled: true
+  forbidden_in_strict:
+    - "file_io"
+    - "network_io"
+    - "database"
+    - "stdout"
+    - "stderr"
+    - "env_vars"
+    - "system_clock"
+    - "random"
+
+boundaries:
+  enabled: true
+  rules:
+    - from: dictionary
+      to: laboratory
+      action: deny
+    - from: dictionary
+      to: hands
+      action: deny
+    - from: laboratory
+      to: hands
+      action: deny
+    - from: hands
+      to: dictionary
+      action: allow
+    - from: hands
+      to: laboratory
+      action: allow

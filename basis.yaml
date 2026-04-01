@@ -1,0 +1,137 @@
+governance:
+  version: "1.0"
+  model: linguistic
+
+# ── Basis governs itself ──────────────────────────────────────────────
+#
+# Functional core:
+#   Dictionary — Inert nouns. Data types and configuration structures.
+#   Laboratory — Pure logic. Validation, checking, reporting.
+#
+# Imperative shell (hands — each adapts one layer):
+#   spec-loader     — Bridges filesystem → dictionary types.
+#   basis-runner    — Bridges laboratory → CLI.
+#
+# depends_on is transitive and is the single source of truth for
+# layer boundaries. No explicit boundary rules needed.
+
+# ── Layers ────────────────────────────────────────────────────────────
+
+layers:
+  dictionary:
+    role: "Inert nouns. Governance spec data types, error types, configuration structures."
+    packages:
+      - "basis-cli/src/spec"
+    rules:
+      purity: strict
+      io: forbidden
+      network: forbidden
+      async: forbidden
+    depends_on: []
+
+  laboratory:
+    role: "Pure logic. Spec validation, report generation."
+    packages:
+      # Rust
+      - "basis-cli/src/validate"
+      - "basis-cli/src/report"
+    rules:
+      purity: strict
+      io: forbidden
+      network: forbidden
+      async: forbidden
+    depends_on:
+      - dictionary
+
+  spec-loader:
+    role: "Bridges filesystem to dictionary types. Reads and parses basis.yaml."
+    packages:
+      - "basis-cli/src/loader"
+    rules:
+      purity: relaxed
+      io: allowed
+    depends_on:
+      - dictionary
+
+  basis-runner:
+    role: "Bridges laboratory to the CLI. File walking, check invocation, IO wrappers."
+    packages:
+      - "basis-cli/src/main"
+      - "basis-cli/src/check"
+      - "basis-cli/src/generate"
+      - "basis-cli/src/language"
+    rules:
+      purity: relaxed
+      io: allowed
+    depends_on:
+      - laboratory
+      - spec-loader
+
+
+# ── Values Axis ───────────────────────────────────────────────────────
+
+newtypes:
+  enabled: true
+  types:
+    - name: LayerName
+      wraps: string
+    - name: PackagePath
+      wraps: string
+    - name: SpecVersion
+      wraps: string
+
+# ── Completeness Axis ─────────────────────────────────────────────────
+
+exhaustive_matching:
+  enabled: true
+  unions:
+    - name: CheckResult
+      variants:
+        - Pass
+        - Violation
+        - Skipped
+    - name: Axis
+      variants:
+        - Values
+        - Placement
+        - Completeness
+        - Purity
+    - name: BoundaryAction
+      variants:
+        - Allow
+        - Deny
+    - name: PurityLevel
+      variants:
+        - Strict
+        - Relaxed
+
+# ── Purity Axis ───────────────────────────────────────────────────────
+
+purity:
+  enabled: true
+  forbidden_in_strict:
+    - "file_io"
+    - "network_io"
+    - "stdout"
+    - "stderr"
+    - "env_vars"
+    - "system_clock"
+    - "dynamic_execution"
+    - "subprocess"
+    - "process"
+
+# ── Placement Axis ────────────────────────────────────────────────────
+
+boundaries:
+  enabled: true
+  external:
+    dictionary:
+      allow: ["serde", "thiserror"]
+      deny_patterns: ["clap", "std::io", "std::fs", "tokio"]
+    laboratory:
+      allow: ["serde", "thiserror", "serde_yaml", "regex", "pyyaml"]
+      deny_patterns: ["clap", "std::io", "std::fs", "tokio"]
+    spec-loader:
+      allow: ["*"]
+    basis-runner:
+      allow: ["*"]

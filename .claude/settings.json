@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "command": "python -m basis_mypy --spec basis.yaml . || exit 2",
+        "timeout": 30000
+      }
+    ]
+  }
+}

@@ -1,0 +1,6 @@
+- id: basis-check
+  name: basis check
+  description: Compiler-enforced architectural governance
+  entry: basis-cli check
+  language: system
+  types_or: [python, rust, javascript, typescript, java, kotlin, go, swift, csharp, ruby]
