@@ -253,6 +253,7 @@ mod tests {
         spec.purity = Some(PurityConfig {
             enabled: true,
             forbidden_in_strict: vec!["file_io".into(), "network_io".into()],
+            per_layer: std::collections::HashMap::new(),
         });
         let report = generate_report(&spec, "text");
         assert!(report.contains("file_io"));

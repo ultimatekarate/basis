@@ -35,7 +35,69 @@ struct LangForbidden {
     call_categories: HashMap<String, String>,
 }
 
-/// Build forbidden pattern sets for all languages from the spec + LangDef data.
+/// Compute the effective forbidden categories for a given layer.
+/// Starts with the global `forbidden_in_strict` list, then applies per-layer overrides.
+fn effective_categories(spec: &BasisSpec, layer_name: &str) -> Vec<String> {
+    let purity = match spec.purity.as_ref().filter(|p| p.enabled) {
+        Some(p) => p,
+        None => return Vec::new(),
+    };
+
+    let mut categories: HashSet<String> = purity.forbidden_in_strict.iter().cloned().collect();
+
+    if let Some(override_config) = purity.per_layer.get(layer_name) {
+        // Add layer-specific extra categories
+        for cat in &override_config.also_forbid {
+            categories.insert(cat.clone());
+        }
+        // Remove layer-specific exemptions
+        for cat in &override_config.allow {
+            categories.remove(cat);
+        }
+    }
+
+    categories.into_iter().collect()
+}
+
+/// Build forbidden pattern sets for a specific language and category list.
+fn build_lang_forbidden(
+    lang: &crate::language::LangDef,
+    categories: &[String],
+) -> LangForbidden {
+    let mut imports = HashSet::new();
+    let mut calls = HashSet::new();
+    let mut import_cats = HashMap::new();
+    let mut call_cats = HashMap::new();
+
+    for category in categories {
+        for &(cat, patterns) in lang.purity_imports {
+            if cat == category {
+                for &p in patterns {
+                    imports.insert(p.to_string());
+                    import_cats.insert(p.to_string(), category.clone());
+                }
+            }
+        }
+        for &(cat, patterns) in lang.purity_calls {
+            if cat == category {
+                for &p in patterns {
+                    calls.insert(p.to_string());
+                    call_cats.insert(p.to_string(), category.clone());
+                }
+            }
+        }
+    }
+
+    LangForbidden {
+        imports,
+        calls,
+        import_categories: import_cats,
+        call_categories: call_cats,
+    }
+}
+
+/// Build forbidden pattern sets for all languages using the global categories.
+/// Used when no per-layer overrides exist for a layer.
 fn build_all_forbidden<'a>(
     spec: &BasisSpec,
     registry: &'a LangRegistry,
@@ -49,39 +111,7 @@ fn build_all_forbidden<'a>(
 
     let mut result = HashMap::new();
     for lang in registry.all() {
-        let mut imports = HashSet::new();
-        let mut calls = HashSet::new();
-        let mut import_cats = HashMap::new();
-        let mut call_cats = HashMap::new();
-
-        for category in &categories {
-            for &(cat, patterns) in lang.purity_imports {
-                if cat == category {
-                    for &p in patterns {
-                        imports.insert(p.to_string());
-                        import_cats.insert(p.to_string(), category.clone());
-                    }
-                }
-            }
-            for &(cat, patterns) in lang.purity_calls {
-                if cat == category {
-                    for &p in patterns {
-                        calls.insert(p.to_string());
-                        call_cats.insert(p.to_string(), category.clone());
-                    }
-                }
-            }
-        }
-
-        result.insert(
-            lang.name,
-            LangForbidden {
-                imports,
-                calls,
-                import_categories: import_cats,
-                call_categories: call_cats,
-            },
-        );
+        result.insert(lang.name, build_lang_forbidden(lang, &categories));
     }
     result
 }
@@ -126,14 +156,22 @@ fn resolve_layer(path: &str, layer_map: &[(String, String)]) -> Option<String> {
 
 /// Check all source files in strict-purity layers for forbidden imports and calls.
 pub fn check_purity(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -> Vec<Violation> {
-    let all_forbidden = build_all_forbidden(spec, registry);
+    let global_forbidden = build_all_forbidden(spec, registry);
 
-    // Quick exit: if no patterns for any language, nothing to check
-    let has_any = all_forbidden
-        .values()
-        .any(|f| !f.imports.is_empty() || !f.calls.is_empty());
-    if !has_any {
-        return Vec::new();
+    // Check if any per-layer overrides exist
+    let has_per_layer = spec
+        .purity
+        .as_ref()
+        .is_some_and(|p| !p.per_layer.is_empty());
+
+    // Quick exit: if no patterns for any language (and no per-layer overrides), nothing to check
+    if !has_per_layer {
+        let has_any = global_forbidden
+            .values()
+            .any(|f| !f.imports.is_empty() || !f.calls.is_empty());
+        if !has_any {
+            return Vec::new();
+        }
     }
 
     let strict = strict_layers(spec);
@@ -167,8 +205,22 @@ pub fn check_purity(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -> V
             return;
         }
 
-        let Some(forbidden) = all_forbidden.get(lang.name) else {
-            return;
+        // Use per-layer forbidden set if overrides exist, otherwise global
+        let layer_specific;
+        let forbidden = if has_per_layer
+            && spec
+                .purity
+                .as_ref()
+                .is_some_and(|p| p.per_layer.contains_key(&layer))
+        {
+            let categories = effective_categories(spec, &layer);
+            layer_specific = build_lang_forbidden(lang, &categories);
+            &layer_specific
+        } else {
+            match global_forbidden.get(lang.name) {
+                Some(f) => f,
+                None => return,
+            }
         };
 
         let content = match std::fs::read_to_string(file_path) {
@@ -428,6 +480,7 @@ mod tests {
             purity: Some(PurityConfig {
                 enabled: true,
                 forbidden_in_strict: vec!["file_io".into(), "network_io".into()],
+                per_layer: HashMap::new(),
             }),
             boundaries: None,
         }
@@ -510,6 +563,7 @@ mod tests {
             purity: Some(PurityConfig {
                 enabled: true,
                 forbidden_in_strict: vec![],
+                per_layer: HashMap::new(),
             }),
             boundaries: None,
         };
@@ -594,5 +648,114 @@ mod tests {
         assert!(s.contains("laboratory"));
         assert!(s.contains("requests"));
         assert!(s.contains("help: move this code"));
+    }
+
+    // ── Per-layer override tests ─────────────────────────
+
+    #[test]
+    fn effective_categories_no_override() {
+        let spec = make_purity_spec();
+        let cats = effective_categories(&spec, "lab");
+        assert!(cats.contains(&"file_io".to_string()));
+        assert!(cats.contains(&"network_io".to_string()));
+    }
+
+    #[test]
+    fn effective_categories_also_forbid() {
+        let mut spec = make_purity_spec();
+        let p = spec.purity.as_mut().unwrap();
+        p.per_layer.insert(
+            "lab".to_string(),
+            crate::spec::LayerPurityOverride {
+                also_forbid: vec!["stdout".into()],
+                allow: vec![],
+            },
+        );
+        let cats = effective_categories(&spec, "lab");
+        assert!(cats.contains(&"file_io".to_string()));
+        assert!(cats.contains(&"network_io".to_string()));
+        assert!(cats.contains(&"stdout".to_string()));
+    }
+
+    #[test]
+    fn effective_categories_allow_exemption() {
+        let mut spec = make_purity_spec();
+        let p = spec.purity.as_mut().unwrap();
+        p.per_layer.insert(
+            "lab".to_string(),
+            crate::spec::LayerPurityOverride {
+                also_forbid: vec![],
+                allow: vec!["file_io".into()],
+            },
+        );
+        let cats = effective_categories(&spec, "lab");
+        assert!(!cats.contains(&"file_io".to_string()));
+        assert!(cats.contains(&"network_io".to_string()));
+    }
+
+    #[test]
+    fn effective_categories_also_forbid_and_allow() {
+        let mut spec = make_purity_spec();
+        let p = spec.purity.as_mut().unwrap();
+        p.per_layer.insert(
+            "lab".to_string(),
+            crate::spec::LayerPurityOverride {
+                also_forbid: vec!["stdout".into(), "env_vars".into()],
+                allow: vec!["network_io".into()],
+            },
+        );
+        let cats = effective_categories(&spec, "lab");
+        // Global: file_io, network_io
+        // + stdout, env_vars
+        // - network_io
+        assert!(cats.contains(&"file_io".to_string()));
+        assert!(!cats.contains(&"network_io".to_string()));
+        assert!(cats.contains(&"stdout".to_string()));
+        assert!(cats.contains(&"env_vars".to_string()));
+    }
+
+    #[test]
+    fn effective_categories_unknown_layer_returns_global() {
+        let spec = make_purity_spec();
+        let cats = effective_categories(&spec, "nonexistent");
+        assert!(cats.contains(&"file_io".to_string()));
+        assert!(cats.contains(&"network_io".to_string()));
+    }
+
+    #[test]
+    fn build_lang_forbidden_respects_categories() {
+        let registry = make_registry();
+        let py = registry.for_ext("py").unwrap();
+
+        let full = build_lang_forbidden(py, &["file_io".into(), "network_io".into()]);
+        assert!(full.imports.contains("shutil"));
+        assert!(full.imports.contains("requests"));
+
+        let partial = build_lang_forbidden(py, &["file_io".into()]);
+        assert!(partial.imports.contains("shutil"));
+        assert!(!partial.imports.contains("requests")); // network_io not included
+    }
+
+    #[test]
+    fn per_layer_override_deserializes() {
+        let yaml = r#"
+governance:
+  version: "1.0"
+purity:
+  enabled: true
+  forbidden_in_strict:
+    - file_io
+    - network_io
+  per_layer:
+    lab:
+      also_forbid: [stdout]
+      allow: [network_io]
+"#;
+        let spec: BasisSpec = serde_yaml::from_str(yaml).unwrap();
+        let p = spec.purity.unwrap();
+        assert!(p.per_layer.contains_key("lab"));
+        let lab = &p.per_layer["lab"];
+        assert_eq!(lab.also_forbid, vec!["stdout".to_string()]);
+        assert_eq!(lab.allow, vec!["network_io".to_string()]);
     }
 }

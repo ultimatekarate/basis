@@ -73,7 +73,13 @@
       "Bash(xargs -0 python3 -c \":*)",
       "Bash(for i:*)",
       "Bash(do time:*)",
-      "Bash(cargo fmt:*)"
+      "Bash(cargo fmt:*)",
+      "Bash(grep -n \"rules\\\\[\" /c/Users/joevo/git-repo/basis/basis-cli/src/check/*.rs)",
+      "Bash(grep -n \"\\\\.rules\" /c/Users/joevo/git-repo/basis/basis-cli/src/check/*.rs)",
+      "Bash(grep -v \"//\")",
+      "Bash(for checker:*)",
+      "Bash(do echo:*)",
+      "Read(//c/Users/joevo/git-repo/basis/basis-cli/src/check/**)"
     ]
   }
 }

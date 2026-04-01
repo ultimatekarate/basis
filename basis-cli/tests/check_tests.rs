@@ -105,6 +105,7 @@ fn make_spec_with_purity() -> BasisSpec {
         purity: Some(PurityConfig {
             enabled: true,
             forbidden_in_strict: vec!["file_io".into(), "network_io".into(), "stdout".into()],
+            per_layer: std::collections::HashMap::new(),
         }),
         boundaries: None,
     }

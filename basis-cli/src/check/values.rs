@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use crate::language::LangRegistry;
+use crate::language::{self, LangRegistry};
 use crate::spec::{applies_to_lang, BasisSpec};
 
 /// A value axis violation — raw primitive used where a branded newtype should be.
@@ -170,6 +170,11 @@ pub fn check_values(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -> V
         let Some(lang) = registry.for_ext(ext) else {
             return;
         };
+
+        // Skip test files — governance applies to production code only
+        if language::is_test_file(&rel, lang) {
+            return;
+        }
 
         // Get the per-language type map and name hints
         let Some(type_map) = type_maps.get(lang.name) else {

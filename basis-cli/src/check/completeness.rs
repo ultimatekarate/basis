@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use crate::language::LangRegistry;
+use crate::language::{self, LangRegistry};
 use crate::spec::{applies_to_lang, BasisSpec};
 
 /// Variant index: variant name → (union name, all variants in that union).
@@ -94,6 +94,11 @@ pub fn check_completeness(
         let Some(lang) = registry.for_ext(ext) else {
             return;
         };
+
+        // Skip test files — governance applies to production code only
+        if language::is_test_file(&rel, lang) {
+            return;
+        }
 
         let Some((variant_index, union_map)) = lang_indices.get(lang.name) else {
             return;

@@ -13,6 +13,7 @@ pub fn validate(spec: &BasisSpec) -> Vec<ValidationError> {
     validate_layer_deps(spec, &mut errors);
     validate_cycle_free(spec, &mut errors);
     validate_boundaries(spec, &mut errors);
+    validate_purity(spec, &mut errors);
     validate_newtypes(spec, &mut errors);
     validate_unions(spec, &mut errors);
 
@@ -151,6 +152,38 @@ fn validate_boundaries(spec: &BasisSpec, errors: &mut Vec<ValidationError>) {
             errors.push(ValidationError(format!(
                 "boundaries.external references unknown layer '{layer_name}'"
             )));
+        }
+    }
+}
+
+fn validate_purity(spec: &BasisSpec, errors: &mut Vec<ValidationError>) {
+    let Some(purity) = &spec.purity else {
+        return;
+    };
+
+    let layer_names: HashSet<&str> = spec.layers.keys().map(|s| s.as_str()).collect();
+
+    for layer_name in purity.per_layer.keys() {
+        if !layer_names.contains(layer_name.as_str()) {
+            errors.push(ValidationError(format!(
+                "purity.per_layer references unknown layer '{layer_name}'"
+            )));
+        }
+    }
+
+    // Check that per-layer overrides reference the strict layers
+    for layer_name in purity.per_layer.keys() {
+        if let Some(layer) = spec.layers.get(layer_name) {
+            let is_strict = layer
+                .rules
+                .get("purity")
+                .map(|v| v == "strict")
+                .unwrap_or(false);
+            if !is_strict {
+                errors.push(ValidationError(format!(
+                    "purity.per_layer references layer '{layer_name}' which is not purity: strict"
+                )));
+            }
         }
     }
 }
@@ -607,5 +640,94 @@ mod tests {
         assert!(errors
             .iter()
             .any(|e| format!("{e}").contains("empty languages list")));
+    }
+
+    // ── Per-layer purity validation ─────────────────────
+
+    fn spec_with_strict_layer(name: &str) -> BasisSpec {
+        let mut layers = HashMap::new();
+        layers.insert(
+            name.to_string(),
+            Layer {
+                role: "test".into(),
+                packages: vec![],
+                rules: {
+                    let mut r = HashMap::new();
+                    r.insert("purity".into(), "strict".into());
+                    r
+                },
+                depends_on: vec![],
+            },
+        );
+        BasisSpec {
+            governance: Governance {
+                version: "1.0".into(),
+                model: None,
+            },
+            layers,
+            newtypes: None,
+            exhaustive_matching: None,
+            purity: Some(PurityConfig {
+                enabled: true,
+                forbidden_in_strict: vec!["file_io".into()],
+                per_layer: HashMap::new(),
+            }),
+            boundaries: None,
+        }
+    }
+
+    #[test]
+    fn purity_per_layer_valid_strict_layer_passes() {
+        let mut spec = spec_with_strict_layer("lab");
+        spec.purity.as_mut().unwrap().per_layer.insert(
+            "lab".into(),
+            LayerPurityOverride {
+                also_forbid: vec!["stdout".into()],
+                allow: vec![],
+            },
+        );
+        assert!(validate(&spec).is_empty());
+    }
+
+    #[test]
+    fn purity_per_layer_unknown_layer_fails() {
+        let mut spec = spec_with_strict_layer("lab");
+        spec.purity.as_mut().unwrap().per_layer.insert(
+            "ghost".into(),
+            LayerPurityOverride {
+                also_forbid: vec![],
+                allow: vec![],
+            },
+        );
+        let errors = validate(&spec);
+        assert!(errors
+            .iter()
+            .any(|e| format!("{e}").contains("unknown layer 'ghost'")));
+    }
+
+    #[test]
+    fn purity_per_layer_non_strict_layer_fails() {
+        let mut spec = spec_with_strict_layer("lab");
+        // Add a non-strict layer
+        spec.layers.insert(
+            "io".into(),
+            Layer {
+                role: "test".into(),
+                packages: vec![],
+                rules: HashMap::new(),
+                depends_on: vec![],
+            },
+        );
+        spec.purity.as_mut().unwrap().per_layer.insert(
+            "io".into(),
+            LayerPurityOverride {
+                also_forbid: vec!["stdout".into()],
+                allow: vec![],
+            },
+        );
+        let errors = validate(&spec);
+        assert!(errors
+            .iter()
+            .any(|e| format!("{e}").contains("not purity: strict")));
     }
 }

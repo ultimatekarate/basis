@@ -213,6 +213,15 @@ purity:
     - "system_clock"
     - "global_mutable_state"
     - "random"
+  # Per-layer overrides. Each key is a strict-purity layer name.
+  # also_forbid: additional categories beyond the global list.
+  # allow: categories exempted from the global list.
+  # Effective set = (global + also_forbid) - allow.
+  per_layer:
+    dictionary:
+      also_forbid: ["subprocess"]       # extra restriction for data types
+    laboratory:
+      allow: ["stdout"]                  # logging OK in analysis layer
 
 # ── Placement Axis ────────────────────────────────────────────────────
 

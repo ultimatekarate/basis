@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use crate::language::{LangDef, LangRegistry};
+use crate::language::{self, LangDef, LangRegistry};
 use crate::spec::BasisSpec;
 
 /// A single placement violation.
@@ -29,6 +29,13 @@ impl std::fmt::Display for Violation {
 
 /// Check all source files under `root` for placement violations against the spec.
 pub fn check_placement(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -> Vec<Violation> {
+    // If boundaries section exists and is disabled, skip placement checks entirely.
+    if let Some(boundaries) = &spec.boundaries {
+        if !boundaries.enabled {
+            return Vec::new();
+        }
+    }
+
     let layer_map = build_layer_map(spec);
     let mut violations = Vec::new();
 
@@ -47,6 +54,11 @@ pub fn check_placement(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -
             return;
         };
 
+        // Skip test files — governance applies to production code only
+        if language::is_test_file(&rel, lang) {
+            return;
+        }
+
         let content = match std::fs::read_to_string(file_path) {
             Ok(c) => c,
             Err(_) => return,
@@ -55,6 +67,29 @@ pub fn check_placement(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -
         for import in (lang.extract_imports)(&content) {
             // Normalize language-native module path to slash-separated for layer matching
             let normalized = normalize_module_path(&import.module, lang);
+
+            // Check external deny_patterns for the source layer
+            if let Some(boundaries) = &spec.boundaries {
+                if let Some(ext_rules) = boundaries.external.get(&from_layer) {
+                    for pattern in &ext_rules.deny_patterns {
+                        if import.module.contains(pattern.as_str()) {
+                            violations.push(Violation {
+                                file: rel.clone(),
+                                line: import.line,
+                                import: import.module.clone(),
+                                from_layer: from_layer.clone(),
+                                to_layer: "(external)".to_string(),
+                                reason: format!(
+                                    "import '{}' matches deny pattern '{}' for layer '{}'",
+                                    import.module, pattern, from_layer
+                                ),
+                            });
+                            break;
+                        }
+                    }
+                }
+            }
+
             let Some(to_layer) = resolve_layer(&normalized, &layer_map) else {
                 continue; // Import not in any governed layer — skip
             };

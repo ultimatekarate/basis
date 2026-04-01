@@ -83,6 +83,18 @@ pub struct PurityConfig {
     pub enabled: bool,
     #[serde(default)]
     pub forbidden_in_strict: Vec<String>,
+    #[serde(default)]
+    pub per_layer: HashMap<String, LayerPurityOverride>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct LayerPurityOverride {
+    /// Additional categories forbidden in this layer beyond the global list.
+    #[serde(default)]
+    pub also_forbid: Vec<String>,
+    /// Categories to exempt from the global forbidden list for this layer.
+    #[serde(default)]
+    pub allow: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

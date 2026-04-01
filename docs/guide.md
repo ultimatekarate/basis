@@ -96,6 +96,31 @@ In a `purity: strict` layer, Basis rejects imports and function calls associated
 
 Layers without `purity: strict` are unrestricted.
 
+#### Per-Layer Overrides
+
+The global `forbidden_in_strict` list applies to every strict layer. When different strict layers need different restrictions, use `per_layer` to override the global list for specific layers:
+
+```yaml
+purity:
+  enabled: true
+  forbidden_in_strict:
+    - file_io
+    - network_io
+    - stdout
+  per_layer:
+    domain:
+      also_forbid: [env_vars, system_clock]  # stricter than global
+    renderer:
+      allow: [stdout]                         # stdout OK in renderer
+```
+
+- `also_forbid` adds categories beyond the global list for that layer.
+- `allow` exempts categories from the global list for that layer.
+
+Both can be used together. The effective forbidden set for a layer is: `(global + also_forbid) - allow`.
+
+`per_layer` only applies to layers marked `purity: strict`. Basis rejects `per_layer` entries that reference non-strict or nonexistent layers during validation.
+
 ### Newtypes (Values Axis)
 
 Newtypes prevent primitive obsession. Define them with a canonical type:
