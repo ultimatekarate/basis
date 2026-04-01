@@ -187,6 +187,19 @@ fn scan_signatures(
                 }
             }
         }
+
+        // Check return type: func foo() -> ReturnType {
+        let rest = lines[end_idx].split_once(')').map(|x| x.1).unwrap_or("");
+        if let Some(arrow_pos) = rest.find("->") {
+            let ret = rest[arrow_pos + 2..]
+                .trim()
+                .trim_end_matches('{')
+                .trim_end_matches('?')
+                .trim();
+            if !ret.is_empty() {
+                super::check_return_type(ret, &fn_name, decl_line, type_map, out);
+            }
+        }
     }
 }
 

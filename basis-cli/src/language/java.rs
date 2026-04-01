@@ -147,14 +147,15 @@ fn scan_signatures(
 
         let decl_line = i;
 
-        // Extract function name: word immediately before "("
-        let fn_name = {
-            let before_paren = trimmed.split('(').next().unwrap_or("");
-            before_paren
-                .split_whitespace()
-                .last()
-                .unwrap_or("")
-                .to_string()
+        // Extract function name and return type: word immediately before "(" is the name,
+        // word before that is the return type (e.g., "public String getUserId(")
+        let before_paren = trimmed.split('(').next().unwrap_or("");
+        let words: Vec<&str> = before_paren.split_whitespace().collect();
+        let fn_name = words.last().unwrap_or(&"").to_string();
+        let return_type = if words.len() >= 2 {
+            Some(words[words.len() - 2].to_string())
+        } else {
+            None
         };
 
         let Some((params_text, end_idx)) = super::collect_params_text(&lines, i) else {
@@ -189,6 +190,15 @@ fn scan_signatures(
                         });
                     }
                 }
+            }
+        }
+
+        // Check return type (word before function name, skip modifiers/void)
+        if let Some(ret) = &return_type {
+            let skip = ["void", "public", "protected", "static", "abstract",
+                        "final", "synchronized", "default", "native"];
+            if !skip.contains(&ret.as_str()) {
+                super::check_return_type(ret, &fn_name, decl_line, type_map, out);
             }
         }
     }

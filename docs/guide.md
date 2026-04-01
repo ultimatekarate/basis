@@ -142,7 +142,7 @@ newtypes:
 
 Canonical types are `string`, `int`, `float`, `bool`. Basis maps these to each language's native primitive (`str` in Python, `String` in Rust, `string` in Go, etc.).
 
-Basis scans public function signatures for parameters whose name suggests a newtype but whose type is a raw primitive. A function `def get_user(user_id: str)` violates the spec because the parameter name contains `userid` and the type is `str` instead of `UserId`.
+Basis scans public function signatures for parameters and return types whose name suggests a newtype but whose type is a raw primitive. A function `def get_user(user_id: str)` violates the spec because the parameter name contains `userid` and the type is `str` instead of `UserId`. A function `def get_user_id() -> str` violates the spec because the function name contains `user_id` and the return type is `str` instead of `UserId`.
 
 Private functions are not checked. The boundary is at the public API.
 
@@ -348,7 +348,7 @@ basis-cli report --spec basis.yaml --format json
 | Code | Axis | Meaning | Fix |
 |------|------|---------|-----|
 | B001 | Placement | Import crosses layer boundary | Move code to correct layer or update `depends_on` |
-| B002 | Values | Raw primitive where newtype required | Use the branded newtype (`UserId` not `str`), or suppress with `exclude_params`/`exclude_functions`/`basis:allow(B002)` |
+| B002 | Values | Raw primitive parameter or return type where newtype required | Use the branded newtype (`UserId` not `str`), or suppress with `exclude_params`/`exclude_functions`/`basis:allow(B002)` |
 | B003 | Completeness | Non-exhaustive match/switch | Add missing case arms or a wildcard |
 | B004 | Purity | Forbidden import or call in strict layer | Move IO code to a non-strict layer |
 
@@ -509,6 +509,7 @@ Every axis is optional. Use what you need.
 - **Logic verification** — Basis doesn't check that your algorithm is correct. It checks that your algorithm is in the right place, uses the right types, and handles all cases.
 - **Deep purity analysis** — Basis checks for direct imports and calls to IO functions. It doesn't trace through call chains to find transitive impurity. A function that calls a function that calls `open()` won't be caught unless it directly imports or calls an IO function itself.
 - **Runtime enforcement** — Basis is a static check. It runs on source code, not on running programs.
+- **Ruby return type checking** — Ruby's Sorbet `sig` blocks use `.returns(Type)` syntax which Basis does not currently parse for return type violations. Parameter checking via Sorbet `params()` works. All other languages with static type annotations (Python, Rust, TypeScript, Go, Java, Kotlin, Swift, C#) check both parameters and return types.
 
 These are deliberate constraints. Basis is a 50ms string scanner, not a type system. It trades depth for breadth — nine languages, four axes, zero dependencies on language-specific tooling.
 

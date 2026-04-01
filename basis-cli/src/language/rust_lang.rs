@@ -165,6 +165,19 @@ fn scan_signatures(
                 }
             }
         }
+
+        // Check return type: fn foo(...) -> ReturnType {
+        let rest = lines[end_idx].split_once(')').map(|x| x.1).unwrap_or("");
+        if let Some(arrow_pos) = rest.find("->") {
+            let ret = rest[arrow_pos + 2..]
+                .trim()
+                .trim_end_matches('{')
+                .trim_end_matches("where")
+                .trim();
+            if !ret.is_empty() {
+                super::check_return_type(ret, &fn_name, decl_line, type_map, out);
+            }
+        }
     }
 }
 
@@ -251,7 +264,7 @@ fn rust_preamble(_has_newtypes: bool, _has_unions: bool) -> String {
 
 fn rust_newtype(name: &str, prim: &str, validation: Option<&str>) -> String {
     let mut out = String::new();
-    out.push_str(&format!("#[derive(Debug, Clone, PartialEq, Eq, Hash)]\n"));
+    out.push_str(&"#[derive(Debug, Clone, PartialEq, Eq, Hash)]\n".to_string());
     out.push_str(&format!("pub struct {name}(pub {prim});\n"));
     if let Some(val) = validation {
         out.push('\n');
@@ -284,9 +297,7 @@ fn rust_union(name: &str, variants: &[String]) -> String {
 fn rust_match_scaffold(union_name: &str, variants: &[String]) -> String {
     let param = to_rust_snake(union_name);
     let mut out = String::new();
-    out.push_str(&format!(
-        "/// Exhaustive match scaffold — all variants must be handled.\n"
-    ));
+    out.push_str(&"/// Exhaustive match scaffold — all variants must be handled.\n".to_string());
     out.push_str(&format!(
         "pub fn handle_{param}({param}: &{union_name}) {{\n"
     ));

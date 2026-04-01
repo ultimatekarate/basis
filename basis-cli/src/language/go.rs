@@ -229,6 +229,21 @@ fn scan_signatures(
                 }
             }
         }
+
+        // Check return type: func foo() string {
+        // Find last ')' on the declaration line and extract the type between ')' and '{'
+        if let Some(close_paren) = trimmed.rfind(')') {
+            let after = trimmed[close_paren + 1..].trim();
+            // Skip tuple returns like (string, error) — only check single returns
+            if !after.starts_with('(') {
+                let ret = after
+                    .trim_end_matches('{')
+                    .trim();
+                if !ret.is_empty() {
+                    super::check_return_type(ret, &fn_name, decl_line, type_map, out);
+                }
+            }
+        }
     }
 }
 

@@ -236,6 +236,37 @@ pub fn name_matches_newtype(param_name: &str, newtype_name: &str) -> bool {
     param_words[offset..] == nt_words[..]
 }
 
+/// Check a return type against the type map and emit a hit if the function name
+/// suggests a newtype but the return type is a raw primitive.
+pub fn check_return_type(
+    return_type: &str,
+    fn_name: &str,
+    decl_line: usize,
+    type_map: &HashMap<String, Vec<String>>,
+    out: &mut Vec<SignatureHit>,
+) {
+    let cleaned = return_type
+        .trim()
+        .trim_start_matches('&')    // Rust references
+        .trim_start_matches("mut ") // Rust mut
+        .trim_end_matches('?')      // Kotlin/Swift nullable
+        .trim();
+
+    if let Some(newtypes) = type_map.get(cleaned) {
+        for nt in newtypes {
+            if name_matches_newtype(fn_name, nt) {
+                out.push(SignatureHit {
+                    line: decl_line + 1,
+                    function_name: fn_name.to_string(),
+                    param_name: "(return)".to_string(),
+                    raw_type: cleaned.to_string(),
+                    suggested: vec![nt.clone()],
+                });
+            }
+        }
+    }
+}
+
 /// Collect complete parameter text from a multi-line function declaration.
 /// Finds the opening `(` on the start line, then collects through the closing `)`.
 /// Returns (params_text, last_line_index) or None if no opening paren found.
