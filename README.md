@@ -19,7 +19,7 @@ error: aborting due to 2 basis violation(s)
 
 ## Four Axes
 
-Every architectural governance rule reduces to a constraint along one of four independent axes:
+Every architectural governance rule we've encountered reduces to a constraint along one of four axes:
 
 | Axis | Governs | Error |
 | ------ | --------- | ------- |

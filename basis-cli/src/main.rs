@@ -4,6 +4,7 @@ use std::process;
 
 mod check;
 mod generate;
+mod infer;
 mod language;
 mod loader;
 mod report;
@@ -93,6 +94,21 @@ enum Command {
         /// Exit 1 only if total violation count increased (lenient)
         #[arg(long)]
         fail_on_net_regression: bool,
+    },
+    /// Infer a basis.yaml spec from an existing codebase
+    Infer {
+        /// Path to the codebase root
+        #[arg(default_value = ".")]
+        path: PathBuf,
+        /// Output file (default: stdout, use --output basis.yaml to write)
+        #[arg(long, short)]
+        output: Option<PathBuf>,
+        /// Minimum occurrences for a newtype candidate (default: 2)
+        #[arg(long, default_value = "2")]
+        min_occurrences: usize,
+        /// Show reasoning for each inference decision
+        #[arg(long)]
+        verbose: bool,
     },
     /// Generate a governance report
     Report {
@@ -466,6 +482,75 @@ fn main() {
             }
             if fail_on_net_regression && trend.net_change() > 0 {
                 process::exit(1);
+            }
+        }
+        Command::Infer {
+            path,
+            output,
+            min_occurrences,
+            verbose: _verbose,
+        } => {
+            let registry = language::LangRegistry::new();
+            let result = infer::infer(&path, &registry, min_occurrences);
+
+            // Print summary to stderr
+            eprintln!("Analyzed {} files.", result.file_count);
+            if !result.layer_names.is_empty() {
+                eprintln!(
+                    "Inferred {} layers: {}",
+                    result.layer_names.len(),
+                    result.layer_names.join(", ")
+                );
+            }
+            if !result.newtype_names.is_empty() {
+                eprintln!(
+                    "Inferred {} candidate newtypes: {}",
+                    result.newtype_names.len(),
+                    result.newtype_names.join(", ")
+                );
+            }
+            if result.stats.untyped_params_skipped > 0 {
+                eprintln!(
+                    "  (skipped {} untyped params — newtype inference requires type annotations)",
+                    result.stats.untyped_params_skipped
+                );
+            }
+            if !result.union_names.is_empty() {
+                eprintln!(
+                    "Found {} unions: {}",
+                    result.union_names.len(),
+                    result.union_names.join(", ")
+                );
+            }
+            if !result.strict_layers.is_empty() {
+                eprintln!(
+                    "Identified {} pure layers (no IO): {}",
+                    result.strict_layers.len(),
+                    result.strict_layers.join(", ")
+                );
+            }
+            if result.boundary_rule_count > 0 {
+                eprintln!(
+                    "Generated {} boundary rules from import graph.",
+                    result.boundary_rule_count
+                );
+            }
+
+            let yaml_struct = infer::InferredSpecYaml::from(result.spec);
+            let yaml = serde_yaml::to_string(&yaml_struct).unwrap_or_else(|e| {
+                eprintln!("Error serializing spec: {e}");
+                process::exit(1);
+            });
+
+            match output {
+                Some(out_path) => {
+                    std::fs::write(&out_path, &yaml).unwrap_or_else(|e| {
+                        eprintln!("Error writing output: {e}");
+                        process::exit(1);
+                    });
+                    eprintln!("Wrote {}", out_path.display());
+                }
+                None => print!("{yaml}"),
             }
         }
         Command::Report {

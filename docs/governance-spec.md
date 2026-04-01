@@ -8,7 +8,7 @@ The solution is proactive architectural governance that makes illegal states unr
 
 ## The Basis
 
-Every architectural governance rule reduces to a constraint along one of four orthogonal axes:
+Every architectural governance rule we've encountered reduces to a constraint along one of four axes:
 
 | Axis | Governs | Makes Unrepresentable |
 | ------ | --------- | ---------------------- |
@@ -17,7 +17,7 @@ Every architectural governance rule reduces to a constraint along one of four or
 | **Completeness** | Case handling | Unhandled states — every enum variant must be addressed |
 | **Purity** | Side effects | Invalid effects — a pure function cannot perform IO |
 
-These four axes are orthogonal (independent) and complete (every governance rule decomposes onto them). Solutions along each axis compose without interference.
+These four axes appear to be independent — each can be tightened or relaxed without affecting the others — and sufficient for every governance rule we've tested against. We have not found a counterexample. If you find one, we want to hear about it.
 
 ### Why These Four Axes
 
@@ -42,11 +42,13 @@ These four axes are independent because each constrains a different dimension of
 
 You can tighten or relax any axis without affecting the others. Adding a branded newtype does not change which modules can import which. Marking a layer strict-purity does not affect whether its match statements are exhaustive. No two axes ever produce the same error for the same defect, because they examine different syntax.
 
-#### Completeness of the Basis
+#### Sufficiency
 
-Every architectural governance rule found in practice decomposes onto these four axes. Layered architecture, hexagonal ports and adapters, the dependency rule — all Placement. Branded types, value objects, newtypes — all Values. Exhaustive pattern matching, sealed class hierarchies — all Completeness. Effect systems, monadic IO, pure/impure separation — all Purity.
+Every architectural governance rule we've tested decomposes onto these four axes. Layered architecture, hexagonal ports and adapters, the dependency rule — all Placement. Branded types, value objects, newtypes — all Values. Exhaustive pattern matching, sealed class hierarchies — all Completeness. Effect systems, monadic IO, pure/impure separation — all Purity.
 
-The four axes correspond to the four things a compiler can statically verify about code structure: type identity, module visibility, branch totality, and effect tracking. These are not arbitrary categories. They are the dimensions along which static analysis can make guarantees.
+The four axes correspond to four things a static tool can verify about code structure: type identity, module visibility, branch totality, and effect tracking.
+
+This is an empirical claim, not a mathematical proof. We haven't found a fifth axis — a governance rule that doesn't decompose onto these four and that can be checked statically on source text. That doesn't mean one can't exist. The claim is strong enough to build on, not strong enough to call a theorem.
 
 #### Standing on Shoulders
 

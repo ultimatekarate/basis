@@ -287,6 +287,59 @@ boundaries:
 
 The `external` section restricts third-party imports per layer. A `domain` layer that imports `tokio` is a violation.
 
+## Inferring a Spec
+
+If you have an existing codebase and don't want to write a spec from scratch, `basis infer` can generate a draft for you:
+
+```bash
+basis-cli infer . --output basis.yaml
+```
+
+This walks your codebase, analyzes its structure, and produces a `basis.yaml` that describes the architecture as-is. The output includes:
+
+- **Layers** inferred from directory structure, with roles guessed from directory names (`models` -> "Data definitions", `api` -> "API/IO boundary", etc.)
+- **Newtypes** inferred from recurring parameter name patterns (`user_id: str` appearing across multiple files suggests a `UserId` newtype wrapping `string`)
+- **Unions** inferred from match/switch statements that share overlapping case sets
+- **Purity** classification based on which layers contain IO operations and which don't
+- **Boundaries** derived from the actual import graph between inferred layers
+
+### Options
+
+```bash
+# Write to file (default is stdout)
+basis-cli infer . --output basis.yaml
+
+# Require more occurrences before proposing a newtype (reduces noise)
+basis-cli infer . --min-occurrences 3
+
+# Show reasoning for each inference decision
+basis-cli infer . --verbose
+```
+
+### The inference-to-spec gap
+
+Running `basis check` against an inferred spec should produce near-zero violations — because the spec describes what the code already does. The value comes from what you do next: **tighten it** — and that is a human job. Basis will never automate this step.
+
+The inferred spec is a photograph of your architecture. The final spec is a blueprint. The gap between them is precisely where architectural intent lives. Closing that gap requires judgment that no tool can provide:
+
+- **Layer grouping** — inference sees one layer per directory. You see that `validate/` and `report/` are conceptually the same "pure logic" layer. That decision exists nowhere in the code.
+- **Meaningful newtypes** — inference finds every recurring `_id` parameter. You decide that `UserId` is a domain concept worth enforcing but `Name` is just a common variable name. That distinction is domain knowledge.
+- **Semantic unions** — inference can only find unions that already appear as match arms. You define unions that *should* exist — the complete set of states, the taxonomy of axes — as prescriptive constraints.
+- **Negative constraints** — inference observes what *is*. You specify what *must not be* — "this layer must never do IO, even though nothing stops it today." There is no code evidence for a rule that has never been violated.
+
+If `basis infer` could perfectly reproduce your spec, the spec would contain no information the code doesn't already have. The fact that it can't is the proof that the spec carries real architectural intent.
+
+The three roles are distinct: `basis infer` generates the scaffold, the architect applies intent, `basis check` enforces the result. Tightening the spec is the architect's irreducible contribution — the part that makes governance meaningful rather than mechanical.
+
+### Recommended workflow
+
+1. Run `basis infer . --output basis.yaml`
+2. Run `basis check --spec basis.yaml .` to verify near-zero violations
+3. **You** edit `basis.yaml`: merge layers by intent, remove noisy newtypes, add domain-specific unions, add negative constraints
+4. Run `basis check` again — violations appear where reality doesn't match your intent
+5. Fix the violations or adjust the spec
+6. Commit `basis.yaml` and add `basis check` to CI
+
 ## Running Basis
 
 ### Check everything
@@ -335,6 +388,76 @@ basis-cli report --spec basis.yaml
 basis-cli report --spec basis.yaml --format json
 ```
 
+### Structured output
+
+```bash
+basis-cli check --spec basis.yaml --format json .
+```
+
+Outputs every violation as structured JSON to stdout. Each violation includes a stable identity key (file + function + type, excluding line numbers) for reliable diffing across runs.
+
+## Measuring Technical Debt
+
+Technical debt is usually a feeling. Basis makes it a number.
+
+**Snapshot your current violations:**
+
+```bash
+basis-cli baseline --spec basis.yaml .
+# Baseline saved: 47 violations to .basis-baseline.json
+```
+
+**Later, see what changed:**
+
+```bash
+basis-cli trend --spec basis.yaml .
+```
+
+```
+Basis Trend: comparing against .basis-baseline.json
+
+  Improved:  -12 violations (3 values, 5 placement, 4 purity)
+  Regressed: +2 violations (2 completeness)
+  Unchanged: 33 violations
+
+  Net change: -10 violations
+```
+
+The four axes tell you *what kind* of debt you have. Placement debt means your boundaries are leaking. Values debt means your types are confused. Completeness debt means you have unhandled cases. Purity debt means side effects are in the wrong places. Different problems, different fixes.
+
+### Gating CI on regression
+
+```bash
+# Strict: zero new violations allowed
+basis-cli trend --spec basis.yaml --fail-on-regression .
+
+# Lenient: fail only if total count went up
+basis-cli trend --spec basis.yaml --fail-on-net-regression .
+```
+
+Both exit 1 on failure. Use `--fail-on-net-regression` for teams actively paying down debt — it allows new violations as long as you fixed more than you introduced.
+
+### Offline mode
+
+For CI pipelines where the check already ran:
+
+```bash
+basis-cli check --spec basis.yaml --format json . > current.json
+basis-cli trend --current current.json --baseline .basis-baseline.json --spec basis.yaml .
+```
+
+### JSON output for dashboards
+
+```bash
+basis-cli trend --spec basis.yaml --format json .
+```
+
+Returns `improved`, `regressed`, and `unchanged` arrays with full violation details.
+
+### Known limitations
+
+File renames cause the old path to appear as "improved" and the new path as "regressed." Re-run `basis baseline` after bulk renames.
+
 ## Error Codes
 
 | Code | Axis | Meaning | Fix |
@@ -363,6 +486,24 @@ jobs:
       - name: Check architecture
         run: basis-cli check --spec basis.yaml .
 ```
+
+For teams adopting Basis incrementally on an existing codebase, use trend-based gating instead of zero-violation enforcement:
+
+```yaml
+name: Basis Trend
+on: [push, pull_request]
+jobs:
+  trend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Basis
+        run: cargo install basis-cli
+      - name: Check for regressions
+        run: basis-cli trend --spec basis.yaml --fail-on-net-regression .
+```
+
+This allows existing violations but blocks any commit that increases the total count. Commit `.basis-baseline.json` to the repo and update it periodically as the team pays down debt.
 
 ### Pre-commit hook
 

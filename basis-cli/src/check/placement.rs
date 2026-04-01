@@ -117,7 +117,7 @@ pub fn check_placement(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -
 /// Normalize a language-native module path to slash-separated for layer matching.
 /// Only converts separators for languages that use them (Python uses `.`, Rust uses `::`).
 /// Go and JS imports are already path-like and should not be transformed.
-fn normalize_module_path(module: &str, lang: &LangDef) -> String {
+pub fn normalize_module_path(module: &str, lang: &LangDef) -> String {
     match lang.name {
         "python" | "java" | "kotlin" | "csharp" => module.replace('.', "/"),
         "rust" => module.replace("::", "/"),
