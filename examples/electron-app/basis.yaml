@@ -148,6 +148,13 @@ purity:
     - "subprocess"
     - "process"
     - "dynamic_execution"
+  # Per-layer overrides: renderer allows console logging,
+  # engine additionally forbids random (deterministic analysis).
+  per_layer:
+    renderer:
+      allow: [stdout, stderr]       # console.log OK in UI components
+    engine:
+      also_forbid: [random]         # analysis must be deterministic
 
 # ── Placement Axis ────────────────────────────────────────────────────
 
@@ -212,7 +219,7 @@ boundaries:
       deny_patterns: ["fastapi", "sqlalchemy", "requests", "httpx", "subprocess"]
     renderer:
       allow: ["react", "svelte", "@tanstack/*", "zustand"]
-      deny_patterns: ["fs", "child_process", "electron/main", "node:*", "better-sqlite3"]
+      deny_patterns: ["node:*", "child_process", "electron/main", "better-sqlite3"]
     main-process:
       allow: ["electron", "electron-store", "better-sqlite3"]
     backend-api:
