@@ -72,7 +72,7 @@ pub fn check_placement(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -
             if let Some(boundaries) = &spec.boundaries {
                 if let Some(ext_rules) = boundaries.external.get(&from_layer) {
                     for pattern in &ext_rules.deny_patterns {
-                        if import.module.contains(pattern.as_str()) {
+                        if deny_pattern_matches(&import.module, pattern) {
                             violations.push(Violation {
                                 file: rel.clone(),
                                 line: import.line,
@@ -122,6 +122,51 @@ fn normalize_module_path(module: &str, lang: &LangDef) -> String {
         "python" | "java" | "kotlin" | "csharp" => module.replace('.', "/"),
         "rust" => module.replace("::", "/"),
         _ => module.to_string(), // Go, JS, Swift — already path-like or single-word
+    }
+}
+
+// ── Deny pattern matching ───────────────────────────────────────────────
+
+/// Match an import module against a deny pattern.
+/// Supports glob-style `*` as a wildcard (matches any substring).
+/// Without `*`, falls back to substring matching for backward compatibility.
+fn deny_pattern_matches(module: &str, pattern: &str) -> bool {
+    if pattern.contains('*') {
+        // Split on '*' and check that parts appear in order
+        let parts: Vec<&str> = pattern.split('*').collect();
+        let mut pos = 0;
+        // First part must be a prefix
+        if !parts[0].is_empty() {
+            if !module.starts_with(parts[0]) {
+                return false;
+            }
+            pos = parts[0].len();
+        }
+        // Last part must be a suffix
+        let last = parts.len() - 1;
+        if !parts[last].is_empty() {
+            if !module.ends_with(parts[last]) {
+                return false;
+            }
+            let suffix_start = module.len() - parts[last].len();
+            if suffix_start < pos {
+                return false;
+            }
+        }
+        // Middle parts must appear in order
+        for &part in &parts[1..last] {
+            if part.is_empty() {
+                continue;
+            }
+            if let Some(found) = module[pos..].find(part) {
+                pos += found + part.len();
+            } else {
+                return false;
+            }
+        }
+        true
+    } else {
+        module.contains(pattern)
     }
 }
 
@@ -683,5 +728,50 @@ mod tests {
         assert!(s.contains("src/logic"));
         assert!(s.contains("dictionary"));
         assert!(s.contains("help:"));
+    }
+
+    // ── deny_pattern_matches ──────────────────────────────
+
+    #[test]
+    fn deny_pattern_no_wildcard_substring() {
+        assert!(deny_pattern_matches("tokio::runtime", "tokio"));
+        assert!(deny_pattern_matches("async-std", "async"));
+        assert!(!deny_pattern_matches("requests", "tokio"));
+    }
+
+    #[test]
+    fn deny_pattern_trailing_wildcard() {
+        assert!(deny_pattern_matches("async-std", "async-*"));
+        assert!(deny_pattern_matches("async-trait", "async-*"));
+        assert!(deny_pattern_matches("async-", "async-*"));
+        assert!(!deny_pattern_matches("sync-std", "async-*"));
+    }
+
+    #[test]
+    fn deny_pattern_leading_wildcard() {
+        assert!(deny_pattern_matches("node:fs", "*:fs"));
+        assert!(deny_pattern_matches("something:fs", "*:fs"));
+        assert!(!deny_pattern_matches("node:http", "*:fs"));
+    }
+
+    #[test]
+    fn deny_pattern_prefix_wildcard() {
+        assert!(deny_pattern_matches("node:fs", "node:*"));
+        assert!(deny_pattern_matches("node:child_process", "node:*"));
+        assert!(!deny_pattern_matches("deno:fs", "node:*"));
+    }
+
+    #[test]
+    fn deny_pattern_middle_wildcard() {
+        assert!(deny_pattern_matches("std::io::File", "std::*::File"));
+        assert!(deny_pattern_matches("std::fs::File", "std::*::File"));
+        assert!(!deny_pattern_matches("std::io::Read", "std::*::File"));
+    }
+
+    #[test]
+    fn deny_pattern_lone_wildcard() {
+        // "*" matches everything
+        assert!(deny_pattern_matches("anything", "*"));
+        assert!(deny_pattern_matches("", "*"));
     }
 }

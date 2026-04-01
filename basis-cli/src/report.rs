@@ -106,6 +106,28 @@ fn generate_text(spec: &BasisSpec) -> String {
             }
             out.push('\n');
         }
+        if purity.enabled && !purity.per_layer.is_empty() {
+            out.push_str("== Per-Layer Purity Overrides ==\n\n");
+            let mut layers: Vec<&String> = purity.per_layer.keys().collect();
+            layers.sort();
+            for layer_name in layers {
+                let overrides = &purity.per_layer[layer_name];
+                out.push_str(&format!("  {layer_name}:\n"));
+                if !overrides.also_forbid.is_empty() {
+                    out.push_str(&format!(
+                        "    also_forbid: {}\n",
+                        overrides.also_forbid.join(", ")
+                    ));
+                }
+                if !overrides.allow.is_empty() {
+                    out.push_str(&format!(
+                        "    allow: {}\n",
+                        overrides.allow.join(", ")
+                    ));
+                }
+            }
+            out.push('\n');
+        }
     }
 
     // Boundaries
@@ -331,5 +353,28 @@ mod tests {
         let spec = minimal_spec();
         let report = generate_report(&spec, "xml");
         assert!(report.contains("v1.0")); // text output
+    }
+
+    #[test]
+    fn text_report_includes_per_layer_overrides() {
+        let mut spec = minimal_spec();
+        let mut per_layer = std::collections::HashMap::new();
+        per_layer.insert(
+            "lab".to_string(),
+            crate::spec::LayerPurityOverride {
+                also_forbid: vec!["stdout".into()],
+                allow: vec!["network_io".into()],
+            },
+        );
+        spec.purity = Some(PurityConfig {
+            enabled: true,
+            forbidden_in_strict: vec!["file_io".into()],
+            per_layer,
+        });
+        let report = generate_report(&spec, "text");
+        assert!(report.contains("Per-Layer Purity Overrides"));
+        assert!(report.contains("lab:"));
+        assert!(report.contains("also_forbid: stdout"));
+        assert!(report.contains("allow: network_io"));
     }
 }
