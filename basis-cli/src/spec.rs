@@ -7,11 +7,16 @@ pub enum SpecError {
     Io(#[from] std::io::Error),
     #[error("Failed to parse spec YAML: {0}")]
     Yaml(#[from] serde_yaml::Error),
+    #[error("Extends error: {0}")]
+    Extends(String),
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct BasisSpec {
     pub governance: Governance,
+    /// Path to a parent spec to inherit from. Resolved relative to this spec file.
+    #[serde(default)]
+    pub extends: Option<String>,
     #[serde(default)]
     pub layers: HashMap<String, Layer>,
     #[serde(default)]
@@ -24,14 +29,14 @@ pub struct BasisSpec {
     pub boundaries: Option<BoundaryConfig>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Governance {
     pub version: String,
     #[serde(default)]
     pub model: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Layer {
     pub role: String,
     #[serde(default)]
@@ -42,7 +47,7 @@ pub struct Layer {
     pub depends_on: Vec<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct NewtypeConfig {
     pub enabled: bool,
     #[serde(default)]
@@ -53,7 +58,7 @@ pub struct NewtypeConfig {
     pub exclude_functions: Vec<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct NewtypeDef {
     pub name: String,
     pub wraps: String,
@@ -63,14 +68,14 @@ pub struct NewtypeDef {
     pub languages: Option<Vec<String>>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ExhaustiveConfig {
     pub enabled: bool,
     #[serde(default)]
     pub unions: Vec<UnionDef>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct UnionDef {
     pub name: String,
     pub variants: Vec<String>,
@@ -78,7 +83,7 @@ pub struct UnionDef {
     pub languages: Option<Vec<String>>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PurityConfig {
     pub enabled: bool,
     #[serde(default)]
@@ -87,7 +92,7 @@ pub struct PurityConfig {
     pub per_layer: HashMap<String, LayerPurityOverride>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct LayerPurityOverride {
     /// Additional categories forbidden in this layer beyond the global list.
     #[serde(default)]
@@ -97,7 +102,7 @@ pub struct LayerPurityOverride {
     pub allow: Vec<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct BoundaryConfig {
     pub enabled: bool,
     #[serde(default)]
@@ -106,7 +111,7 @@ pub struct BoundaryConfig {
     pub external: HashMap<String, ExternalRules>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct BoundaryRule {
     pub from: String,
     pub to: String,
@@ -115,7 +120,7 @@ pub struct BoundaryRule {
     pub reason: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ExternalRules {
     #[serde(default)]
     pub allow: Vec<String>,

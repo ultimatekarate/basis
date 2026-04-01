@@ -10,6 +10,7 @@ fn make_spec_with_newtypes() -> BasisSpec {
             version: "1.0".into(),
             model: None,
         },
+        extends: None,
         layers: HashMap::new(),
         newtypes: Some(NewtypeConfig {
             enabled: true,
@@ -48,6 +49,7 @@ fn make_spec_with_unions() -> BasisSpec {
             version: "1.0".into(),
             model: None,
         },
+        extends: None,
         layers: HashMap::new(),
         newtypes: None,
         exhaustive_matching: Some(ExhaustiveConfig {
@@ -99,6 +101,7 @@ fn make_spec_with_purity() -> BasisSpec {
             version: "1.0".into(),
             model: None,
         },
+        extends: None,
         layers,
         newtypes: None,
         exhaustive_matching: None,
@@ -377,6 +380,7 @@ fn make_polyglot_spec() -> BasisSpec {
             version: "1.0".into(),
             model: None,
         },
+        extends: None,
         layers: HashMap::new(),
         newtypes: Some(NewtypeConfig {
             enabled: true,

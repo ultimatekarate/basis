@@ -477,6 +477,7 @@ mod tests {
     fn resolve_layer_longest_prefix_wins() {
         let map = build_layer_map(&{
             let mut spec = BasisSpec {
+            extends: None,
                 governance: crate::spec::Governance {
                     version: "1.0".into(),
                     model: None,
@@ -522,6 +523,7 @@ mod tests {
     #[test]
     fn no_deps_means_denied() {
         let spec = BasisSpec {
+            extends: None,
             governance: crate::spec::Governance {
                 version: "1.0".into(),
                 model: None,
@@ -538,6 +540,7 @@ mod tests {
     #[test]
     fn explicit_allow_rule() {
         let spec = BasisSpec {
+            extends: None,
             governance: crate::spec::Governance {
                 version: "1.0".into(),
                 model: None,
@@ -563,6 +566,7 @@ mod tests {
     #[test]
     fn explicit_deny_rule() {
         let spec = BasisSpec {
+            extends: None,
             governance: crate::spec::Governance {
                 version: "1.0".into(),
                 model: None,
@@ -607,6 +611,7 @@ mod tests {
             },
         );
         let spec = BasisSpec {
+            extends: None,
             governance: crate::spec::Governance {
                 version: "1.0".into(),
                 model: None,
@@ -652,6 +657,7 @@ mod tests {
             },
         );
         let spec = BasisSpec {
+            extends: None,
             governance: crate::spec::Governance {
                 version: "1.0".into(),
                 model: None,
@@ -672,6 +678,7 @@ mod tests {
     #[test]
     fn get_deny_reason_from_rule() {
         let spec = BasisSpec {
+            extends: None,
             governance: crate::spec::Governance {
                 version: "1.0".into(),
                 model: None,
@@ -697,6 +704,7 @@ mod tests {
     #[test]
     fn get_deny_reason_default() {
         let spec = BasisSpec {
+            extends: None,
             governance: crate::spec::Governance {
                 version: "1.0".into(),
                 model: None,

@@ -554,6 +554,33 @@ Basis automatically excludes test files from checking. Each language has its own
 
 Test code can import anything, use raw primitives, and skip enum arms. The governance applies to production code.
 
+## Why It Works: A Case Study
+
+During development of Basis itself, we implemented spec composition — the `extends:` feature that lets a child spec inherit from a parent. The feature required code in three governed layers:
+
+- **dictionary** (spec.rs, strict purity) — the `extends: Option<String>` field on `BasisSpec`
+- **laboratory** (validate.rs, strict purity) — `merge_specs()`, a pure function that takes two specs and returns one
+- **spec-loader** (loader.rs, IO allowed) — `load_spec_with_chain()`, which reads parent files and detects circular extends chains
+
+The implementation compiled, passed all tests, and `basis check` reported zero violations on the first run.
+
+Basis didn't catch a single mistake.
+
+This sounds like a failure. It isn't. Here's what actually happened: after reading `basis.yaml` — four layers, dependency arrows, purity rules — it was immediately obvious where every function belonged. The merge logic is pure data transformation, so it goes in laboratory. File reading is IO, so it goes in the loader. The data type is inert, so it goes in dictionary. There was no ambiguity, no judgment call, no "it could go either way."
+
+The spec didn't need to catch violations because it made the architecture so legible that violations didn't occur.
+
+This is the deeper argument for Basis. A `basis.yaml` is not just a set of constraints — it's a communication protocol between the architect and every future contributor. It says: here are the layers, here's what's pure, here's what's allowed to do IO, here are the types that must not be confused, here are the unions that must be handled exhaustively. After reading that, the design space collapses. There is usually only one right place for any given piece of code.
+
+Most codebases encode their architecture in convention, tribal knowledge, and stale documentation. A new contributor (human or AI) has to read dozens of files to infer the patterns, and even then they're guessing. With Basis, they read one file and the structural intent is unambiguous — because it's enforced, it can't have drifted from reality.
+
+Basis works at two levels:
+
+1. **Active enforcement** — catching violations when someone puts code in the wrong place, uses a raw primitive, misses an enum arm, or imports IO in a pure layer
+2. **Passive clarity** — making the architecture so explicit that most violations never happen in the first place
+
+The first level is what CI catches. The second level is what makes LLMs (and new team members) productive on day one.
+
 ## FAQ
 
 **Can I use Basis without layers?**

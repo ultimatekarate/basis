@@ -8,6 +8,7 @@ use crate::spec::{applies_to_lang, BasisSpec};
 pub struct Violation {
     pub file: String,
     pub line: usize,
+    pub function_name: String,
     pub param_name: String,
     pub raw_type: String,
     pub suggested: Vec<String>,
@@ -238,6 +239,7 @@ pub fn check_values(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -> V
             violations.push(Violation {
                 file: rel.clone(),
                 line: hit.line,
+                function_name: hit.function_name,
                 param_name: hit.param_name,
                 raw_type: hit.raw_type,
                 suggested: hit.suggested,
@@ -324,6 +326,7 @@ mod tests {
                 version: "1.0".into(),
                 model: None,
             },
+            extends: None,
             layers: HashMap::new(),
             newtypes: Some(crate::spec::NewtypeConfig {
                 enabled: true,
@@ -363,6 +366,7 @@ mod tests {
                 version: "1.0".into(),
                 model: None,
             },
+            extends: None,
             layers: HashMap::new(),
             newtypes: Some(crate::spec::NewtypeConfig {
                 enabled: false,
@@ -573,6 +577,7 @@ mod tests {
         let v = Violation {
             file: "test.py".into(),
             line: 5,
+            function_name: "get_user".into(),
             param_name: "user_id".into(),
             raw_type: "str".into(),
             suggested: vec!["UserId".into()],
@@ -1183,6 +1188,7 @@ newtypes:
         let v = Violation {
             file: "test.py".into(),
             line: 5,
+            function_name: "get_user_id".into(),
             param_name: "(return)".into(),
             raw_type: "str".into(),
             suggested: vec!["UserId".into()],
@@ -1199,6 +1205,7 @@ newtypes:
         let v = Violation {
             file: "test.py".into(),
             line: 5,
+            function_name: "get_user".into(),
             param_name: "user_id".into(),
             raw_type: "str".into(),
             suggested: vec!["UserId".into()],

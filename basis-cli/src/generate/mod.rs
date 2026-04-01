@@ -110,6 +110,7 @@ mod tests {
                 version: "1.0".to_string(),
                 model: None,
             },
+            extends: None,
             layers: Default::default(),
             newtypes: Some(NewtypeConfig {
                 enabled: true,

@@ -474,6 +474,7 @@ mod tests {
                 version: "1.0".into(),
                 model: None,
             },
+            extends: None,
             layers,
             newtypes: None,
             exhaustive_matching: None,
@@ -545,6 +546,7 @@ mod tests {
                 version: "1.0".into(),
                 model: None,
             },
+            extends: None,
             layers: {
                 let mut m = HashMap::new();
                 m.insert(

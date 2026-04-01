@@ -80,7 +80,14 @@
       "Bash(for checker:*)",
       "Bash(do echo:*)",
       "Read(//c/Users/joevo/git-repo/basis/basis-cli/src/check/**)",
-      "Bash(xargs wc:*)"
+      "Bash(xargs wc:*)",
+      "Bash(/tmp/basis_test_violation.py:*)",
+      "Bash(cp /tmp/basis_test_violation.py basis-cli/src/dictionary/temp_violation.py)",
+      "Bash(ls basis-cli/src/spec*)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(grep \"missing \\\\`extends\\\\`\")",
+      "Bash(grep -oP 'src\\\\\\\\[^\\\\:]+:\\\\d+')",
+      "Bash(grep -o 'src\\\\\\\\[^:]*:[0-9]*')"
     ]
   }
 }

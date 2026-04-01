@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::spec::{BasisSpec, KNOWN_LANGUAGES};
+use crate::spec::{BasisSpec, ExhaustiveConfig, NewtypeConfig, KNOWN_LANGUAGES};
 
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
@@ -18,6 +18,131 @@ pub fn validate(spec: &BasisSpec) -> Vec<ValidationError> {
     validate_unions(spec, &mut errors);
 
     errors
+}
+
+// ── Spec composition (pure merge) ──────────────────────────────────
+
+/// Merge a parent spec into a child spec. Child values take precedence.
+/// This is pure logic — no IO. The loader is responsible for reading files.
+///
+/// Merge semantics:
+/// - governance: child wins (version, model)
+/// - extends: cleared (already resolved by loader)
+/// - layers: union by name; child overrides parent on conflict
+/// - newtypes: types appended, deduplicated by name (child wins); exclude lists merged
+/// - exhaustive_matching: unions appended, deduplicated by name (child wins)
+/// - purity: child replaces parent if child defines it; otherwise inherited
+/// - boundaries: child replaces parent if child defines it; otherwise inherited
+pub fn merge_specs(parent: &BasisSpec, child: &BasisSpec) -> BasisSpec {
+    // Layers: start with parent, overlay child
+    let mut layers = parent.layers.clone();
+    for (name, layer) in &child.layers {
+        layers.insert(name.clone(), layer.clone());
+    }
+
+    // Newtypes: merge types list, child wins on name conflict
+    let newtypes = merge_newtypes(&parent.newtypes, &child.newtypes);
+
+    // Exhaustive matching: merge unions list, child wins on name conflict
+    let exhaustive_matching = merge_exhaustive(&parent.exhaustive_matching, &child.exhaustive_matching);
+
+    // Purity: child replaces parent if present
+    let purity = if child.purity.is_some() {
+        child.purity.clone()
+    } else {
+        parent.purity.clone()
+    };
+
+    // Boundaries: child replaces parent if present
+    let boundaries = if child.boundaries.is_some() {
+        child.boundaries.clone()
+    } else {
+        parent.boundaries.clone()
+    };
+
+    BasisSpec {
+        governance: child.governance.clone(),
+        extends: None, // resolved
+        layers,
+        newtypes,
+        exhaustive_matching,
+        purity,
+        boundaries,
+    }
+}
+
+fn merge_newtypes(
+    parent: &Option<NewtypeConfig>,
+    child: &Option<NewtypeConfig>,
+) -> Option<NewtypeConfig> {
+    match (parent, child) {
+        (None, None) => None,
+        (Some(p), None) => Some(p.clone()),
+        (None, Some(c)) => Some(c.clone()),
+        (Some(p), Some(c)) => {
+            // Child enabled flag wins
+            let enabled = c.enabled;
+
+            // Merge types: child wins on name conflict
+            let mut types_map: HashMap<String, crate::spec::NewtypeDef> = HashMap::new();
+            for nt in &p.types {
+                types_map.insert(nt.name.clone(), nt.clone());
+            }
+            for nt in &c.types {
+                types_map.insert(nt.name.clone(), nt.clone());
+            }
+            let mut types: Vec<_> = types_map.into_values().collect();
+            types.sort_by(|a, b| a.name.cmp(&b.name));
+
+            // Merge exclude lists (union, deduplicated)
+            let mut exclude_params: Vec<String> = p.exclude_params.clone();
+            for ep in &c.exclude_params {
+                if !exclude_params.contains(ep) {
+                    exclude_params.push(ep.clone());
+                }
+            }
+
+            let mut exclude_functions: Vec<String> = p.exclude_functions.clone();
+            for ef in &c.exclude_functions {
+                if !exclude_functions.contains(ef) {
+                    exclude_functions.push(ef.clone());
+                }
+            }
+
+            Some(NewtypeConfig {
+                enabled,
+                types,
+                exclude_params,
+                exclude_functions,
+            })
+        }
+    }
+}
+
+fn merge_exhaustive(
+    parent: &Option<ExhaustiveConfig>,
+    child: &Option<ExhaustiveConfig>,
+) -> Option<ExhaustiveConfig> {
+    match (parent, child) {
+        (None, None) => None,
+        (Some(p), None) => Some(p.clone()),
+        (None, Some(c)) => Some(c.clone()),
+        (Some(p), Some(c)) => {
+            let enabled = c.enabled;
+
+            let mut unions_map: HashMap<String, crate::spec::UnionDef> = HashMap::new();
+            for u in &p.unions {
+                unions_map.insert(u.name.clone(), u.clone());
+            }
+            for u in &c.unions {
+                unions_map.insert(u.name.clone(), u.clone());
+            }
+            let mut unions: Vec<_> = unions_map.into_values().collect();
+            unions.sort_by(|a, b| a.name.cmp(&b.name));
+
+            Some(ExhaustiveConfig { enabled, unions })
+        }
+    }
 }
 
 fn validate_governance(spec: &BasisSpec, errors: &mut Vec<ValidationError>) {
@@ -262,6 +387,7 @@ mod tests {
                 version: "1.0".into(),
                 model: None,
             },
+            extends: None,
             layers: HashMap::new(),
             newtypes: None,
             exhaustive_matching: None,
@@ -288,6 +414,7 @@ mod tests {
                 version: "1.0".into(),
                 model: None,
             },
+            extends: None,
             layers: map,
             newtypes: None,
             exhaustive_matching: None,
@@ -664,6 +791,7 @@ mod tests {
                 version: "1.0".into(),
                 model: None,
             },
+            extends: None,
             layers,
             newtypes: None,
             exhaustive_matching: None,
@@ -729,5 +857,159 @@ mod tests {
         assert!(errors
             .iter()
             .any(|e| format!("{e}").contains("not purity: strict")));
+    }
+
+    // ── merge_specs tests ─────────────────────────────────
+
+    #[test]
+    fn merge_layers_union() {
+        let parent = spec_with_layers(vec![("a", vec![]), ("b", vec!["a"])]);
+        let child = spec_with_layers(vec![("c", vec!["a"])]);
+        let merged = merge_specs(&parent, &child);
+        assert!(merged.layers.contains_key("a"));
+        assert!(merged.layers.contains_key("b"));
+        assert!(merged.layers.contains_key("c"));
+    }
+
+    #[test]
+    fn merge_layers_child_overrides() {
+        let mut parent = spec_with_layers(vec![("a", vec![])]);
+        parent.layers.get_mut("a").unwrap().role = "parent role".into();
+
+        let mut child = spec_with_layers(vec![("a", vec![])]);
+        child.layers.get_mut("a").unwrap().role = "child role".into();
+
+        let merged = merge_specs(&parent, &child);
+        assert_eq!(merged.layers["a"].role, "child role");
+    }
+
+    #[test]
+    fn merge_newtypes_appends_and_deduplicates() {
+        let mut parent = minimal_spec();
+        parent.newtypes = Some(NewtypeConfig {
+            enabled: true,
+            types: vec![
+                NewtypeDef { name: "UserId".into(), wraps: "string".into(), validation: None, languages: None },
+                NewtypeDef { name: "OrderId".into(), wraps: "string".into(), validation: None, languages: None },
+            ],
+            exclude_params: vec!["index".into()],
+            exclude_functions: vec![],
+        });
+
+        let mut child = minimal_spec();
+        child.newtypes = Some(NewtypeConfig {
+            enabled: true,
+            types: vec![
+                NewtypeDef { name: "OrderId".into(), wraps: "int".into(), validation: Some("positive".into()), languages: None },
+                NewtypeDef { name: "SessionId".into(), wraps: "string".into(), validation: None, languages: None },
+            ],
+            exclude_params: vec!["count".into()],
+            exclude_functions: vec!["len".into()],
+        });
+
+        let merged = merge_specs(&parent, &child);
+        let nt = merged.newtypes.unwrap();
+        assert_eq!(nt.types.len(), 3); // UserId, OrderId (child wins), SessionId
+        let order = nt.types.iter().find(|t| t.name == "OrderId").unwrap();
+        assert_eq!(order.wraps, "int"); // child overrides
+        assert!(nt.exclude_params.contains(&"index".into()));
+        assert!(nt.exclude_params.contains(&"count".into()));
+        assert!(nt.exclude_functions.contains(&"len".into()));
+    }
+
+    #[test]
+    fn merge_newtypes_parent_only() {
+        let mut parent = minimal_spec();
+        parent.newtypes = Some(NewtypeConfig {
+            enabled: true,
+            types: vec![NewtypeDef { name: "UserId".into(), wraps: "string".into(), validation: None, languages: None }],
+            exclude_params: vec![],
+            exclude_functions: vec![],
+        });
+        let child = minimal_spec();
+        let merged = merge_specs(&parent, &child);
+        assert!(merged.newtypes.is_some());
+        assert_eq!(merged.newtypes.unwrap().types.len(), 1);
+    }
+
+    #[test]
+    fn merge_exhaustive_appends_and_deduplicates() {
+        let mut parent = minimal_spec();
+        parent.exhaustive_matching = Some(ExhaustiveConfig {
+            enabled: true,
+            unions: vec![
+                UnionDef { name: "Status".into(), variants: vec!["A".into(), "B".into()], languages: None },
+            ],
+        });
+
+        let mut child = minimal_spec();
+        child.exhaustive_matching = Some(ExhaustiveConfig {
+            enabled: true,
+            unions: vec![
+                UnionDef { name: "Status".into(), variants: vec!["X".into(), "Y".into()], languages: None },
+                UnionDef { name: "Mode".into(), variants: vec!["Fast".into(), "Slow".into()], languages: None },
+            ],
+        });
+
+        let merged = merge_specs(&parent, &child);
+        let em = merged.exhaustive_matching.unwrap();
+        assert_eq!(em.unions.len(), 2); // Status (child wins), Mode
+        let status = em.unions.iter().find(|u| u.name == "Status").unwrap();
+        assert_eq!(status.variants, vec!["X", "Y"]); // child overrides
+    }
+
+    #[test]
+    fn merge_purity_child_replaces() {
+        let mut parent = minimal_spec();
+        parent.purity = Some(PurityConfig {
+            enabled: true,
+            forbidden_in_strict: vec!["file_io".into(), "network_io".into()],
+            per_layer: HashMap::new(),
+        });
+
+        let mut child = minimal_spec();
+        child.purity = Some(PurityConfig {
+            enabled: true,
+            forbidden_in_strict: vec!["stdout".into()],
+            per_layer: HashMap::new(),
+        });
+
+        let merged = merge_specs(&parent, &child);
+        let p = merged.purity.unwrap();
+        assert_eq!(p.forbidden_in_strict, vec!["stdout"]);
+    }
+
+    #[test]
+    fn merge_purity_inherited_when_child_absent() {
+        let mut parent = minimal_spec();
+        parent.purity = Some(PurityConfig {
+            enabled: true,
+            forbidden_in_strict: vec!["file_io".into()],
+            per_layer: HashMap::new(),
+        });
+        let child = minimal_spec();
+        let merged = merge_specs(&parent, &child);
+        assert!(merged.purity.is_some());
+        assert_eq!(merged.purity.unwrap().forbidden_in_strict, vec!["file_io"]);
+    }
+
+    #[test]
+    fn merge_extends_cleared() {
+        let mut parent = minimal_spec();
+        parent.extends = Some("grandparent.yaml".into());
+        let mut child = minimal_spec();
+        child.extends = Some("parent.yaml".into());
+        let merged = merge_specs(&parent, &child);
+        assert!(merged.extends.is_none());
+    }
+
+    #[test]
+    fn merge_governance_child_wins() {
+        let mut parent = minimal_spec();
+        parent.governance.model = Some("linguistic".into());
+        let mut child = minimal_spec();
+        child.governance.model = Some("hexagonal".into());
+        let merged = merge_specs(&parent, &child);
+        assert_eq!(merged.governance.model, Some("hexagonal".into()));
     }
 }
