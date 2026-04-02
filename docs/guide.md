@@ -319,7 +319,29 @@ layers:
     depends_on: [domain, all-external]
 ```
 
-Layers that depend on `all-external` can import any third-party package. Layers that don't are restricted to their declared external dependencies.
+Layers that depend on `all-external` can import any third-party package. Layers that don't are restricted to their declared external dependencies — any import that matches the wildcard but isn't allowed will be flagged.
+
+#### Language-Internal Imports
+
+Languages have built-in import prefixes that are neither your code nor third-party packages — Rust's `crate::`, `std::`, `super::`, Go's standard library, etc. Basis does not hardcode knowledge of any language's internal imports. Instead, declare them as an external layer:
+
+```yaml
+layers:
+  rust-internal:
+    external: true
+    role: "Rust language-internal imports"
+    packages: [crate, super, self, std, core, alloc]
+```
+
+Every internal layer that uses these imports should depend on `rust-internal`. This keeps language-specific knowledge in the spec, not in the tool.
+
+#### Relative Path Resolution
+
+Imports using `./` or `../` are resolved against the importing file's directory before layer matching. `import { X } from "../types/types"` in `analysis/trends.ts` resolves to `types/types`, which correctly matches the `types` internal layer. This is generic filesystem path resolution — no language-specific knowledge is involved.
+
+#### Opt-in Governance
+
+Imports that don't match any layer — internal or external — pass silently. Basis only flags imports that positively match a declared external layer the importing layer doesn't depend on. This means you can introduce external layers incrementally without triggering violations for packages you haven't categorized yet.
 
 #### External Layer Transitivity
 

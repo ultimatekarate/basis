@@ -73,9 +73,16 @@ pub fn check_placement(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -
             content
         };
 
+        // Compute the directory of the importing file for relative path resolution
+        let file_dir = rel.rsplit_once('/').map(|(d, _)| d).unwrap_or("");
+
         for import in (lang.extract_imports)(&content) {
             // Normalize language-native module path to slash-separated for layer matching
             let normalized = normalize_module_path(&import.module, lang);
+
+            // Resolve relative imports (./ and ../) against the importing file's directory.
+            // This is generic filesystem path resolution, not language-specific knowledge.
+            let normalized = resolve_relative_import(&normalized, file_dir);
 
             // Legacy: check external deny_patterns (boundaries.external) if no external layers defined
             if !has_external_layers {
@@ -119,16 +126,12 @@ pub fn check_placement(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -
                 continue;
             }
 
-            // Skip language-internal imports (crate-relative, std library, etc.)
-            // These can never be external packages.
-            if is_lang_internal_import(&normalized, lang) {
-                continue;
-            }
-
-            // Not an internal layer import — check against external layers
+            // Not an internal layer import — check against external layers.
+            // Only flag imports that positively match a declared external layer.
+            // Imports that don't match any layer (internal or external) pass silently —
+            // governance is opt-in, not opt-out.
             if has_external_layers {
                 if let Some(ext_layer) = resolve_external_layer(&normalized, &external_map) {
-                    // Import matches an external layer — check if allowed
                     if !is_allowed(&from_layer, &ext_layer, spec) {
                         violations.push(Violation {
                             file: rel.clone(),
@@ -142,21 +145,6 @@ pub fn check_placement(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -
                             ),
                         });
                     }
-                } else {
-                    // Import doesn't match any external layer — check wildcard access
-                    if !has_wildcard_external_access(&from_layer, spec) {
-                        violations.push(Violation {
-                            file: rel.clone(),
-                            line: import.line,
-                            import: import.module.clone(),
-                            from_layer: from_layer.clone(),
-                            to_layer: "(ungoverned external)".to_string(),
-                            reason: format!(
-                                "import '{}' is not in any external layer depended on by '{}'",
-                                import.module, from_layer
-                            ),
-                        });
-                    }
                 }
             }
         }
@@ -165,26 +153,40 @@ pub fn check_placement(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -
     violations
 }
 
-/// Normalize a language-native module path to slash-separated for layer matching.
-/// Only converts separators for languages that use them (Python uses `.`, Rust uses `::`).
-/// Go and JS imports are already path-like and should not be transformed.
-/// Check whether a normalized import is language-internal (not an external package).
-/// These imports are intra-crate references or standard library and should not be
-/// checked against external layers.
-fn is_lang_internal_import(normalized: &str, lang: &LangDef) -> bool {
-    match lang.name {
-        "rust" => {
-            // crate/, super/, self/ are intra-crate references
-            // std/, core/, alloc/ are Rust built-in libraries
-            let prefix = normalized.split('/').next().unwrap_or("");
-            matches!(prefix, "crate" | "super" | "self" | "std" | "core" | "alloc")
+/// Resolve a relative import path (./ or ../) against the importing file's directory.
+/// Returns the resolved path, or the original if it's not relative.
+///
+/// This is generic filesystem path logic — no language-specific knowledge.
+/// `./utils` from `analysis/trends.ts` → `analysis/utils`
+/// `../types/types` from `analysis/trends.ts` → `types/types`
+fn resolve_relative_import(normalized: &str, file_dir: &str) -> String {
+    if normalized.starts_with("./") {
+        // Same-directory reference: prepend the file's directory
+        let rest = &normalized[2..];
+        if file_dir.is_empty() {
+            rest.to_string()
+        } else {
+            format!("{file_dir}/{rest}")
         }
-        "js" => {
-            // Relative imports (./foo, ../bar) are intra-project references,
-            // not external packages
-            normalized.starts_with("./") || normalized.starts_with("../")
+    } else if normalized.starts_with("../") {
+        // Parent-directory reference: walk up from the file's directory
+        let mut dir_parts: Vec<&str> = if file_dir.is_empty() {
+            Vec::new()
+        } else {
+            file_dir.split('/').collect()
+        };
+        let mut rest = &normalized[..];
+        while rest.starts_with("../") {
+            dir_parts.pop(); // go up one level
+            rest = &rest[3..];
         }
-        _ => false,
+        if dir_parts.is_empty() {
+            rest.to_string()
+        } else {
+            format!("{}/{rest}", dir_parts.join("/"))
+        }
+    } else {
+        normalized.to_string()
     }
 }
 
@@ -297,19 +299,6 @@ fn resolve_external_layer(import: &str, external_map: &[(String, String)]) -> Op
         }
     }
     None
-}
-
-/// Check if a layer has a wildcard external layer in its transitive dependencies.
-fn has_wildcard_external_access(layer: &str, spec: &BasisSpec) -> bool {
-    let deps = transitive_deps(layer, spec);
-    for dep in &deps {
-        if let Some(dep_layer) = spec.layers.get(dep) {
-            if dep_layer.external && dep_layer.packages.iter().any(|p| p == "*") {
-                return true;
-            }
-        }
-    }
-    false
 }
 
 /// Resolve a file path to its layer by matching against package prefixes.

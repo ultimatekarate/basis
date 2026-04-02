@@ -34,6 +34,11 @@ layers:
     role: "Command-line argument parsing"
     packages: [clap]
 
+  rust-internal:
+    external: true
+    role: "Rust language-internal imports (crate-relative, std library)"
+    packages: [crate, super, self, std, core, alloc]
+
   all-external:
     external: true
     role: "Unrestricted external access"
@@ -50,7 +55,7 @@ layers:
       io: forbidden
       network: forbidden
       async: forbidden
-    depends_on: [serialization]
+    depends_on: [serialization, rust-internal]
 
   laboratory:
     role: "Pure logic. Spec validation, report generation."
@@ -67,6 +72,7 @@ layers:
       - dictionary
       - serialization
       - parsing
+      - rust-internal
 
   spec-loader:
     role: "Bridges filesystem to dictionary types. Reads and parses basis.yaml."

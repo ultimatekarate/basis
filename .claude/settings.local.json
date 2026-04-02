@@ -93,7 +93,13 @@
       "Bash(find basis-cli/src -name \"*.rs\" -exec wc -l {} +)",
       "Bash(for f:*)",
       "Read(//c/Users/joevo/git-repo/basis/**)",
-      "Bash(\"C:/Users/joevo/git-repo/basis/basis-cli/src/check/values_tmp.rs\")"
+      "Bash(\"C:/Users/joevo/git-repo/basis/basis-cli/src/check/values_tmp.rs\")",
+      "Bash(for dir:*)",
+      "Read(//c/Users/joevo/git-repo/basis-examples/**)",
+      "Bash(/c/Users/joevo/git-repo/basis/basis-cli/target/release/basis-cli infer:*)",
+      "Bash(/c/Users/joevo/git-repo/basis/basis-cli/target/release/basis-cli check:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

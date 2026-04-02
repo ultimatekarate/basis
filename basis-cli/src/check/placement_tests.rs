@@ -659,56 +659,31 @@ fn resolve_external_layer_longest_match() {
     );
 }
 
-// ── has_wildcard_external_access ─────────────────────────
+// ── resolve_relative_import ─────────────────────────────
 
 #[test]
-fn wildcard_external_access_detected() {
-    let mut layers = HashMap::new();
-    layers.insert(
-        "all-external".to_string(),
-        crate::spec::Layer {
-            role: "everything".into(),
-            packages: vec!["*".into()],
-            rules: HashMap::new(),
-            depends_on: vec![],
-            external: true,
-        },
-    );
-    layers.insert(
-        "runner".to_string(),
-        crate::spec::Layer {
-            role: "runner".into(),
-            packages: vec!["src/main".into()],
-            rules: HashMap::new(),
-            depends_on: vec!["all-external".into()],
-            external: false,
-        },
-    );
-    layers.insert(
-        "dict".to_string(),
-        crate::spec::Layer {
-            role: "data".into(),
-            packages: vec!["src/models".into()],
-            rules: HashMap::new(),
-            depends_on: vec![],
-            external: false,
-        },
-    );
-    let spec = BasisSpec {
-        extends: None,
-        governance: crate::spec::Governance {
-            version: "1.0".into(),
-            model: None,
-        },
-        layers,
-        newtypes: None,
-        exhaustive_matching: None,
-        purity: None,
-        boundaries: None,
-    };
+fn relative_dot_slash_resolved() {
+    assert_eq!(resolve_relative_import("./utils", "analysis"), "analysis/utils");
+    assert_eq!(resolve_relative_import("./helpers/format", "src/api"), "src/api/helpers/format");
+}
 
-    assert!(has_wildcard_external_access("runner", &spec));
-    assert!(!has_wildcard_external_access("dict", &spec));
+#[test]
+fn relative_dot_dot_slash_resolved() {
+    assert_eq!(resolve_relative_import("../types/types", "analysis"), "types/types");
+    assert_eq!(resolve_relative_import("../../shared/utils", "src/api/v2"), "src/shared/utils");
+}
+
+#[test]
+fn relative_from_root_dir() {
+    assert_eq!(resolve_relative_import("./utils", ""), "utils");
+    assert_eq!(resolve_relative_import("../types", ""), "types");
+}
+
+#[test]
+fn non_relative_unchanged() {
+    assert_eq!(resolve_relative_import("react", "analysis"), "react");
+    assert_eq!(resolve_relative_import("types/station", "analysis"), "types/station");
+    assert_eq!(resolve_relative_import("crate/spec", "src/check"), "crate/spec");
 }
 
 // ── internal layers excluded from external map ───────────
@@ -744,46 +719,50 @@ fn internal_layer_excluded_from_layer_map_when_external() {
     assert!(layer_map.is_empty());
 }
 
-// ── is_lang_internal_import ────────────────────────────────
+// ── unmatched imports pass silently ─────────────────────
 
 #[test]
-fn rust_internal_imports_detected() {
-    let rust = &language::rust_lang::RUST;
-    assert!(is_lang_internal_import("crate/spec/BasisSpec", rust));
-    assert!(is_lang_internal_import("super/something", rust));
-    assert!(is_lang_internal_import("self/module", rust));
-    assert!(is_lang_internal_import("std/collections/HashMap", rust));
-    assert!(is_lang_internal_import("core/fmt", rust));
-    assert!(is_lang_internal_import("alloc/vec", rust));
-}
+fn unmatched_import_not_flagged() {
+    // Imports that don't match any internal or external layer should pass silently.
+    // Governance is opt-in: only imports that positively match a declared external
+    // layer are checked.
+    let mut layers = HashMap::new();
+    layers.insert(
+        "stdlib".to_string(),
+        crate::spec::Layer {
+            role: "stdlib".into(),
+            packages: vec!["json".into()],
+            rules: HashMap::new(),
+            depends_on: vec![],
+            external: true,
+        },
+    );
+    layers.insert(
+        "logic".to_string(),
+        crate::spec::Layer {
+            role: "logic".into(),
+            packages: vec!["src/logic".into()],
+            rules: HashMap::new(),
+            depends_on: vec!["stdlib".into()],
+            external: false,
+        },
+    );
+    let spec = BasisSpec {
+        extends: None,
+        governance: crate::spec::Governance {
+            version: "1.0".into(),
+            model: None,
+        },
+        layers,
+        newtypes: None,
+        exhaustive_matching: None,
+        purity: None,
+        boundaries: None,
+    };
+    let external_map = build_external_map(&spec);
 
-#[test]
-fn rust_external_imports_not_internal() {
-    let rust = &language::rust_lang::RUST;
-    assert!(!is_lang_internal_import("serde/Serialize", rust));
-    assert!(!is_lang_internal_import("tokio/runtime", rust));
-    assert!(!is_lang_internal_import("clap", rust));
-}
-
-#[test]
-fn python_imports_not_internal() {
-    let py = &language::python::PYTHON;
-    assert!(!is_lang_internal_import("os/path", py));
-    assert!(!is_lang_internal_import("django/db", py));
-}
-
-#[test]
-fn js_relative_imports_are_internal() {
-    let js = &language::javascript::JAVASCRIPT;
-    assert!(is_lang_internal_import("./utils", js));
-    assert!(is_lang_internal_import("../types/types", js));
-    assert!(is_lang_internal_import("./components/Button", js));
-}
-
-#[test]
-fn js_package_imports_not_internal() {
-    let js = &language::javascript::JAVASCRIPT;
-    assert!(!is_lang_internal_import("react", js));
-    assert!(!is_lang_internal_import("express/Router", js));
-    assert!(!is_lang_internal_import("@types/node", js));
+    // "os" doesn't match any external layer → should NOT produce a violation
+    assert!(resolve_external_layer("os", &external_map).is_none());
+    // "json" matches stdlib → should be governed
+    assert_eq!(resolve_external_layer("json", &external_map).unwrap(), "stdlib");
 }
