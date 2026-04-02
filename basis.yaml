@@ -12,12 +12,35 @@ governance:
 #   spec-loader     — Bridges filesystem → dictionary types.
 #   basis-runner    — Bridges laboratory → CLI.
 #
-# depends_on is transitive and is the single source of truth for
-# layer boundaries. No explicit boundary rules needed.
+# External layers group third-party packages by concern domain.
+# Internal layers access external packages through depends_on,
+# using the same structural dependency mechanism as internal code.
 
-# ── Layers ────────────────────────────────────────────────────────────
+# ── External Layers (tool groups) ────────────────────────────────────
 
 layers:
+  serialization:
+    external: true
+    role: "Serialization and deserialization"
+    packages: [serde, thiserror]
+
+  parsing:
+    external: true
+    role: "File format parsing and pattern matching"
+    packages: [serde_yaml, regex, pyyaml]
+
+  cli:
+    external: true
+    role: "Command-line argument parsing"
+    packages: [clap]
+
+  all-external:
+    external: true
+    role: "Unrestricted external access"
+    packages: ["*"]
+
+# ── Internal Layers ──────────────────────────────────────────────────
+
   dictionary:
     role: "Inert nouns. Governance spec data types, error types, configuration structures."
     packages:
@@ -27,7 +50,7 @@ layers:
       io: forbidden
       network: forbidden
       async: forbidden
-    depends_on: []
+    depends_on: [serialization]
 
   laboratory:
     role: "Pure logic. Spec validation, report generation."
@@ -42,6 +65,8 @@ layers:
       async: forbidden
     depends_on:
       - dictionary
+      - serialization
+      - parsing
 
   spec-loader:
     role: "Bridges filesystem to dictionary types. Reads and parses basis.yaml."
@@ -52,6 +77,7 @@ layers:
       io: allowed
     depends_on:
       - dictionary
+      - all-external
 
   basis-runner:
     role: "Bridges laboratory to the CLI. File walking, check invocation, IO wrappers."
@@ -66,6 +92,8 @@ layers:
     depends_on:
       - laboratory
       - spec-loader
+      - cli
+      - all-external
 
 
 # ── Values Axis ───────────────────────────────────────────────────────
@@ -124,14 +152,3 @@ purity:
 
 boundaries:
   enabled: true
-  external:
-    dictionary:
-      allow: ["serde", "thiserror"]
-      deny_patterns: ["clap", "std::io", "std::fs", "tokio"]
-    laboratory:
-      allow: ["serde", "thiserror", "serde_yaml", "regex", "pyyaml"]
-      deny_patterns: ["clap", "std::io", "std::fs", "tokio"]
-    spec-loader:
-      allow: ["*"]
-    basis-runner:
-      allow: ["*"]

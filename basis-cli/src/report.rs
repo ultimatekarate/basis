@@ -208,6 +208,7 @@ mod tests {
                 packages: vec!["src/models".into()],
                 rules: HashMap::new(),
                 depends_on: vec![],
+                external: false,
             },
         );
         let report = generate_report(&spec, "text");

@@ -87,7 +87,13 @@
       "Bash(echo \"EXIT: $?\")",
       "Bash(grep \"missing \\\\`extends\\\\`\")",
       "Bash(grep -oP 'src\\\\\\\\[^\\\\:]+:\\\\d+')",
-      "Bash(grep -o 'src\\\\\\\\[^:]*:[0-9]*')"
+      "Bash(grep -o 'src\\\\\\\\[^:]*:[0-9]*')",
+      "Bash(./basis-cli/target/release/basis-cli validate:*)",
+      "Bash(./basis-cli/target/release/basis-cli check:*)",
+      "Bash(find basis-cli/src -name \"*.rs\" -exec wc -l {} +)",
+      "Bash(for f:*)",
+      "Read(//c/Users/joevo/git-repo/basis/**)",
+      "Bash(\"C:/Users/joevo/git-repo/basis/basis-cli/src/check/values_tmp.rs\")"
     ]
   }
 }

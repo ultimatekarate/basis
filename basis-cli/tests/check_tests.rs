@@ -84,6 +84,7 @@ fn make_spec_with_purity() -> BasisSpec {
                 r
             },
             depends_on: vec![],
+            external: false,
         },
     );
     layers.insert(
@@ -93,6 +94,7 @@ fn make_spec_with_purity() -> BasisSpec {
             packages: vec!["src/api".into()],
             rules: HashMap::new(),
             depends_on: vec!["laboratory".into()],
+            external: false,
         },
     );
 

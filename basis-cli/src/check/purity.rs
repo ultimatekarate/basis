@@ -457,6 +457,7 @@ mod tests {
                     r
                 },
                 depends_on: vec![],
+                external: false,
             },
         );
         layers.insert(
@@ -466,6 +467,7 @@ mod tests {
                 packages: vec!["src/api".into()],
                 rules: HashMap::new(),
                 depends_on: vec![],
+                external: false,
             },
         );
 
@@ -556,6 +558,7 @@ mod tests {
                         packages: vec![],
                         rules: HashMap::new(),
                         depends_on: vec![],
+                        external: false,
                     },
                 );
                 m

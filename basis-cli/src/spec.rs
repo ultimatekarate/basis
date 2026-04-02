@@ -45,6 +45,11 @@ pub struct Layer {
     pub rules: HashMap<String, String>,
     #[serde(default)]
     pub depends_on: Vec<String>,
+    /// If true, this layer represents external (third-party) packages.
+    /// External layers are matched by package name against imports,
+    /// not by file path prefix.
+    #[serde(default)]
+    pub external: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -209,6 +214,33 @@ exhaustive_matching:
         let unions = &spec.exhaustive_matching.unwrap().unions;
         assert_eq!(unions[0].languages, Some(vec!["python".to_string()]));
         assert_eq!(unions[1].languages, None);
+    }
+
+    #[test]
+    fn deserialize_external_layer() {
+        let yaml = r#"
+governance:
+  version: "1.0"
+layers:
+  serialization:
+    external: true
+    role: "Serialization tools"
+    packages: [serde, thiserror]
+  dictionary:
+    role: "Data types"
+    packages: ["src/models"]
+    depends_on: [serialization]
+"#;
+        let spec: BasisSpec = serde_yaml::from_str(yaml).unwrap();
+        assert!(spec.layers["serialization"].external);
+        assert!(!spec.layers["dictionary"].external);
+    }
+
+    #[test]
+    fn external_defaults_to_false() {
+        let yaml = "governance:\n  version: '1.0'\nlayers:\n  dict:\n    role: data\n    packages: ['src/models']\n    depends_on: []\n";
+        let spec: BasisSpec = serde_yaml::from_str(yaml).unwrap();
+        assert!(!spec.layers["dict"].external);
     }
 
     #[test]

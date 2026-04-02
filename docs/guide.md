@@ -265,9 +265,95 @@ exhaustive_matching:
 
 When `languages:` is omitted, the union applies to all languages. When present, Basis only checks match statements in files of those languages. `basis generate` skips unions that don't apply to the target language.
 
-### Boundaries (Placement Axis)
+### External Layers (Placement Axis)
 
-Boundaries are usually implied by `depends_on`, but you can add explicit rules:
+Third-party packages are governed the same way as internal code — through layers and `depends_on`. Mark a layer as `external: true` to declare a group of external packages:
+
+```yaml
+layers:
+  serialization:
+    external: true
+    role: "Serialization and deserialization"
+    packages: [serde, thiserror]
+
+  networking:
+    external: true
+    role: "Async runtime and HTTP"
+    packages: [tokio, hyper, reqwest]
+
+  domain:
+    role: "Pure data types"
+    packages: ["src/models"]
+    rules: { purity: strict }
+    depends_on: [serialization]
+
+  infra:
+    role: "IO and external services"
+    packages: ["src/api", "src/storage"]
+    depends_on: [domain, serialization, networking]
+```
+
+A file in `domain` can import `serde` (because `domain` depends on `serialization`) but cannot import `tokio` (because `domain` does not depend on `networking`). A file in `infra` can import both.
+
+External layer packages use **segment-boundary matching** — the same algorithm as internal layer path resolution. An entry `E` matches import `I` if `I == E` (exact) or `I` starts with `E/` (sub-path). This prevents `serde` from matching `serde_json` — they're different crates.
+
+| Entry | Matches | Doesn't match |
+|---|---|---|
+| `serde` | `serde`, `serde/Serialize` | `serde_json` |
+| `tokio` | `tokio`, `tokio/runtime` | `tokio_util` |
+| `net/http` | `net/http`, `net/http/handler` | `net/smtp` |
+
+#### Wildcard External Access
+
+For layers that need unrestricted external access, use a wildcard:
+
+```yaml
+layers:
+  all-external:
+    external: true
+    role: "Unrestricted external access"
+    packages: ["*"]
+
+  infra:
+    packages: ["src/api"]
+    depends_on: [domain, all-external]
+```
+
+Layers that depend on `all-external` can import any third-party package. Layers that don't are restricted to their declared external dependencies.
+
+#### External Layer Transitivity
+
+Dependencies between external layers propagate transitively:
+
+```yaml
+layers:
+  networking:
+    external: true
+    packages: [tokio, hyper]
+
+  web-framework:
+    external: true
+    packages: [actix-web, actix-rt]
+    depends_on: [networking]
+
+  api-layer:
+    packages: ["src/api"]
+    depends_on: [web-framework]
+```
+
+`api-layer` can import `actix-web` (direct) and `tokio` (transitive through `web-framework`). The relationship is expressed once, not repeated in every consumer.
+
+#### External Layer Rules
+
+- External layers' `packages` are package names, not file paths. They're matched against imports, not used for file resolution.
+- External layers cannot have `rules` (purity settings) — they describe code you don't control.
+- External layers can have `depends_on` (for transitivity) and `role` (documentation).
+- The dependency graph (including external layers) must be a DAG.
+- `basis check` does not walk files in external layers — they have no source files.
+
+### Boundary Rules
+
+Boundaries are usually implied by `depends_on`, but you can add explicit structural overrides:
 
 ```yaml
 boundaries:
@@ -277,15 +363,7 @@ boundaries:
       to: infra
       action: deny
       reason: "Domain must not depend on infrastructure"
-  external:
-    domain:
-      allow: ["serde", "thiserror"]
-      deny_patterns: ["tokio", "std::io", "reqwest"]
-    infra:
-      allow: ["*"]
 ```
-
-The `external` section restricts third-party imports per layer. A `domain` layer that imports `tokio` is a violation.
 
 ## Inferring a Spec
 
@@ -605,6 +683,7 @@ Types without `languages:` apply everywhere. Types with `languages:` are checked
 Basis doesn't prescribe a model. The spec is a DAG of layers with purity rules. You choose the architecture:
 
 **Hexagonal (Ports & Adapters):**
+
 ```yaml
 layers:
   domain:
@@ -621,6 +700,7 @@ layers:
 ```
 
 **Clean Architecture:**
+
 ```yaml
 layers:
   entities:
@@ -640,6 +720,7 @@ layers:
 ```
 
 **Linguistic Code Model (functional core / imperative shell):**
+
 ```yaml
 layers:
   dictionary:
@@ -656,6 +737,7 @@ layers:
 ```
 
 **Flat (no layers, just types and exhaustiveness):**
+
 ```yaml
 governance:
   version: "1.0"
