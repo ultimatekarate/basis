@@ -403,6 +403,7 @@ The inferred spec is a photograph of your architecture. The final spec is a blue
 - **Layer grouping** — inference sees one layer per directory. You see that `validate/` and `report/` are conceptually the same "pure logic" layer. That decision exists nowhere in the code.
 - **Meaningful newtypes** — inference finds every recurring `_id` parameter. You decide that `UserId` is a domain concept worth enforcing but `Name` is just a common variable name. That distinction is domain knowledge.
 - **Semantic unions** — inference can only find unions that already appear as match arms. You define unions that *should* exist — the complete set of states, the taxonomy of axes — as prescriptive constraints.
+- **External layers** — inference sees third-party imports but doesn't group them into external layers. You decide that `serde` and `thiserror` belong to a `serialization` layer, that `tokio` and `hyper` belong to `networking`, and that your domain layer should only access `serialization`. That grouping is architectural intent — it doesn't exist in the import graph.
 - **Negative constraints** — inference observes what *is*. You specify what *must not be* — "this layer must never do IO, even though nothing stops it today." There is no code evidence for a rule that has never been violated.
 
 If `basis infer` could perfectly reproduce your spec, the spec would contain no information the code doesn't already have. The fact that it can't is the proof that the spec carries real architectural intent.
