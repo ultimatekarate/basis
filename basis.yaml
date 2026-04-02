@@ -6,13 +6,16 @@ governance:
 # ── Basis governs itself ──────────────────────────────────────────────
 #
 # Functional core:
-#   Dictionary — Inert nouns. Data types and configuration structures.
-#   Laboratory — Pure logic. Validation, checking, reporting.
+#   Dictionary    — Inert nouns. Data types and configuration structures.
+#   Laboratory    — Pure logic. Validation, checking, reporting.
 #
-# Imperative shell (hands — each adapts one layer):
-#   spec-loader     — Bridges filesystem → dictionary types.
-#   basis-runner    — Bridges laboratory → CLI.
+# Imperative shell:
+#   spec-loader     — Bridges filesystem → dictionary types. Fetches remote specs.
+#   check-engine    — Reusable check orchestration, inference, code generation.
+#   cli-runner      — CLI entry point. Argument parsing, output formatting.
+#   language-server — LSP process. Watches files, pushes diagnostics to editors.
 #
+# Network IO is quarantined to spec-loader via boundary deny rules.
 # External layers group third-party packages by concern domain.
 # Internal layers access external packages through depends_on,
 # using the same structural dependency mechanism as internal code.
@@ -92,20 +95,49 @@ layers:
       - network-io
       - all-external
 
-  basis-runner:
-    role: "Bridges laboratory to the CLI. File walking, check invocation, IO wrappers."
+  check-engine:
+    role: "Reusable check orchestration, code generation, inference, language definitions."
     packages:
-      - "basis-cli/src/main"
       - "basis-cli/src/check"
       - "basis-cli/src/generate"
+      - "basis-cli/src/infer"
       - "basis-cli/src/language"
     rules:
       purity: relaxed
       io: allowed
     depends_on:
+      - dictionary
+      - laboratory
+      - spec-loader
+      - rust-internal
+      - all-external
+
+  cli-runner:
+    role: "CLI entry point. Argument parsing, output formatting, process exit."
+    packages:
+      - "basis-cli/src/main"
+    rules:
+      purity: relaxed
+      io: allowed
+    depends_on:
+      - check-engine
+      - language-server
       - laboratory
       - spec-loader
       - cli
+      - all-external
+
+  language-server:
+    role: "Long-lived LSP process. Watches files, pushes diagnostics to editors."
+    packages:
+      - "basis-cli/src/lsp"
+    rules:
+      purity: relaxed
+      io: allowed
+    depends_on:
+      - check-engine
+      - spec-loader
+      - rust-internal
       - all-external
 
 
@@ -174,7 +206,15 @@ boundaries:
       to: network-io
       action: deny
       reason: "pure logic must not perform network IO"
-    - from: basis-runner
+    - from: check-engine
+      to: network-io
+      action: deny
+      reason: "only spec-loader may fetch remote specs"
+    - from: cli-runner
+      to: network-io
+      action: deny
+      reason: "only spec-loader may fetch remote specs"
+    - from: language-server
       to: network-io
       action: deny
       reason: "only spec-loader may fetch remote specs"

@@ -7,6 +7,7 @@ mod generate;
 mod infer;
 mod language;
 mod loader;
+mod lsp;
 mod report;
 mod spec;
 mod validate;
@@ -110,6 +111,8 @@ enum Command {
         #[arg(long)]
         verbose: bool,
     },
+    /// Start the LSP server (stdio) for editor integration
+    Lsp,
     /// Generate a governance report
     Report {
         /// Path to the basis.yaml spec
@@ -567,6 +570,12 @@ fn main() {
                     eprintln!("Wrote {}", out_path.display());
                 }
                 None => print!("{yaml}"),
+            }
+        }
+        Command::Lsp => {
+            if let Err(e) = lsp::run() {
+                eprintln!("LSP server error: {e}");
+                process::exit(1);
             }
         }
         Command::Report {

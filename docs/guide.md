@@ -866,13 +866,25 @@ governance:
 
 ## Why It Works: A Case Study
 
-During development of Basis itself, we implemented spec composition — the `extends:` feature that lets a child spec inherit from a parent, including remote URLs. The feature required code in three governed layers:
+Basis governs itself. Its own `basis.yaml` has evolved through three architectural milestones, each of which tested whether the tool does what it claims.
+
+### Chapter 1: Spec Composition
+
+The first real feature was `extends` — letting a child spec inherit from a parent. The implementation required code in three governed layers:
 
 - **dictionary** (spec.rs, strict purity) — the `extends: Option<String>` field on `BasisSpec`
 - **laboratory** (validate.rs, strict purity) — `merge_specs()`, a pure function that takes two specs and returns one
-- **spec-loader** (loader.rs, IO allowed) — `load_spec_with_chain()`, which reads parent files, fetches remote URLs, and detects circular extends chains
+- **spec-loader** (loader.rs, IO allowed) — `load_spec_with_chain()`, which reads parent files and detects circular extends chains
 
-Remote spec fetching required a network dependency (`ureq`). This created a real boundary constraint: only `spec-loader` should perform network IO. Basis uses explicit boundary deny rules to enforce this:
+The implementation compiled, passed all tests, and `basis check` reported zero violations. Not because checking was weak — because after reading `basis.yaml`, it was immediately obvious where every function belonged. The merge logic is pure data transformation, so it goes in laboratory. File reading is IO, so it goes in the loader. The data type is inert, so it goes in dictionary.
+
+### Chapter 2: Network Quarantine
+
+Then came remote inheritance — `extends: https://company.com/base.yaml`. This required adding `ureq` (an HTTP client), which introduced a new concern: network IO. Only `spec-loader` should fetch remote specs. No other layer should touch the network.
+
+`depends_on` alone couldn't enforce this. The `all-external` wildcard layer grants broad access to every imperative shell layer. Without an explicit constraint, any layer could import `ureq` and the architecture would silently leak.
+
+This was the feature that gave `boundaries.rules` a real job:
 
 ```yaml
 boundaries:
@@ -886,23 +898,47 @@ boundaries:
       to: network-io
       action: deny
       reason: "pure logic must not perform network IO"
-    - from: basis-runner
+    - from: check-engine
+      to: network-io
+      action: deny
+      reason: "only spec-loader may fetch remote specs"
+    - from: cli-runner
+      to: network-io
+      action: deny
+      reason: "only spec-loader may fetch remote specs"
+    - from: language-server
       to: network-io
       action: deny
       reason: "only spec-loader may fetch remote specs"
 ```
 
-These deny rules override what `depends_on` transitivity would otherwise allow. The `all-external` wildcard layer grants broad access, but the deny rules surgically prevent network IO from leaking outside `spec-loader`.
+These deny rules override what `depends_on` transitivity would otherwise allow. They enforce a real constraint: network IO is quarantined to one layer.
 
-The implementation compiled, passed all tests, and `basis check` reported zero violations on the first run.
+### Chapter 3: The LSP and the Trench Coat
 
-Basis didn't catch a single mistake.
+Then we built an LSP server — a long-lived process that watches files and pushes governance diagnostics to editors. An LSP is architecturally different from a CLI: it holds connections, manages state, runs continuously.
 
-This sounds like a failure. It isn't. Here's what actually happened: after reading `basis.yaml` — four layers, dependency arrows, purity rules, boundary constraints — it was immediately obvious where every function belonged. The merge logic is pure data transformation, so it goes in laboratory. File reading and network fetching are IO, so they go in the loader. The data type is inert, so it goes in dictionary. The boundary rules made the constraint explicit: network IO is quarantined. There was no ambiguity, no judgment call, no "it could go either way."
+The question was: where does it go? The answer revealed that the existing `basis-runner` layer was two things wearing a trench coat — reusable check orchestration and CLI-specific argument parsing. The LSP needed the first but not the second.
 
-The spec didn't need to catch violations because it made the architecture so legible that violations didn't occur.
+The split was clean:
 
-This is the deeper argument for Basis. A `basis.yaml` is not just a set of constraints — it's a communication protocol between the architect and every future contributor. It says: here are the layers, here's what's pure, here's what's allowed to do IO, here are the types that must not be confused, here are the unions that must be handled exhaustively. After reading that, the design space collapses. There is usually only one right place for any given piece of code.
+- **check-engine** — the four axis checkers, code generation, inference, language definitions. Pure domain logic with no UI coupling.
+- **cli-runner** — `main.rs`. Argument parsing, output formatting, process exit codes.
+- **language-server** — the LSP. Watches files, converts violations to diagnostics, pushes to editors.
+
+Both `cli-runner` and `language-server` depend on `check-engine`. They call the same four check functions. They get back the same `UnifiedViolation` data. One formats it as terminal text; the other converts it to LSP diagnostics.
+
+The LSP took about ten minutes to implement. Not because it's trivial — it has protocol handling, URI parsing, spec discovery, diagnostic conversion, message dispatch. But every decision was pre-made by the spec. The check functions already took `&BasisSpec` and `&Path` and returned pure data. The dependency graph was already factored for reuse. The `run_check` function in the LSP is nearly identical to the one in the CLI — not because of lazy duplication, but because the interface was already right.
+
+### The Deeper Argument
+
+None of these features produced a violation on first run. Basis never caught a mistake in its own code.
+
+This sounds like a failure. It isn't.
+
+The spec didn't need to catch violations because it made the architecture so legible that violations didn't occur. After reading `basis.yaml`, there was one right place for every function and zero plausible wrong ones.
+
+This is what Basis actually does. A `basis.yaml` is not just a set of constraints — it's a communication protocol between the architect and every future contributor. It says: here are the layers, here's what's pure, here's what's allowed to do IO, here are the types that must not be confused, here are the unions that must be handled exhaustively, here's where network access is quarantined. After reading that, the design space collapses.
 
 Most codebases encode their architecture in convention, tribal knowledge, and stale documentation. A new contributor (human or AI) has to read dozens of files to infer the patterns, and even then they're guessing. With Basis, they read one file and the structural intent is unambiguous — because it's enforced, it can't have drifted from reality.
 
@@ -911,7 +947,7 @@ Basis works at two levels:
 1. **Active enforcement** — catching violations when someone puts code in the wrong place, uses a raw primitive, misses an enum arm, or imports IO in a pure layer
 2. **Passive clarity** — making the architecture so explicit that most violations never happen in the first place
 
-The first level is what CI catches. The second level is what makes LLMs (and new team members) productive on day one.
+The first level is what CI catches. The second level is what makes an LSP server take ten minutes instead of a week.
 
 ## FAQ
 

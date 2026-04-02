@@ -3,6 +3,7 @@ pub mod generate;
 pub mod infer;
 pub mod language;
 pub mod loader;
+pub mod lsp;
 pub mod report;
 pub mod spec;
 pub mod validate;
