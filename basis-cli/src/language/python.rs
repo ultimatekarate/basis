@@ -105,7 +105,7 @@ pub fn extract_imports(content: &str) -> Vec<Import> {
         if let Some(rest) = trimmed.strip_prefix("from ") {
             if let Some(module) = rest.split_whitespace().next() {
                 let module = module.trim();
-                if !module.is_empty() && module != "." && module != ".." {
+                if !module.is_empty() && !module.starts_with('.') {
                     imports.push(Import {
                         module: module.to_string(),
                         line: line_num + 1,
@@ -452,6 +452,13 @@ mod tests {
     fn skips_relative_dot() {
         let imports = extract_imports("from . import sibling\n");
         assert!(imports.is_empty());
+    }
+
+    #[test]
+    fn skips_all_relative_imports() {
+        let content = "from .station import StationId\nfrom ..types import Alert\nfrom .utils.helpers import format_id\n";
+        let imports = extract_imports(content);
+        assert!(imports.is_empty(), "relative imports should be skipped: {:?}", imports.iter().map(|i| &i.module).collect::<Vec<_>>());
     }
 
     #[test]

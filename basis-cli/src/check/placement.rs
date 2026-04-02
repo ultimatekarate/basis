@@ -66,6 +66,13 @@ pub fn check_placement(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -
             Err(_) => return,
         };
 
+        // Apply language-specific preprocessing (e.g., strip #[cfg(test)] for Rust)
+        let content = if let Some(preprocess) = lang.preprocess {
+            preprocess(&content)
+        } else {
+            content
+        };
+
         for import in (lang.extract_imports)(&content) {
             // Normalize language-native module path to slash-separated for layer matching
             let normalized = normalize_module_path(&import.module, lang);
@@ -171,6 +178,11 @@ fn is_lang_internal_import(normalized: &str, lang: &LangDef) -> bool {
             // std/, core/, alloc/ are Rust built-in libraries
             let prefix = normalized.split('/').next().unwrap_or("");
             matches!(prefix, "crate" | "super" | "self" | "std" | "core" | "alloc")
+        }
+        "js" => {
+            // Relative imports (./foo, ../bar) are intra-project references,
+            // not external packages
+            normalized.starts_with("./") || normalized.starts_with("../")
         }
         _ => false,
     }

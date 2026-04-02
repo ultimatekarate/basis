@@ -771,3 +771,19 @@ fn python_imports_not_internal() {
     assert!(!is_lang_internal_import("os/path", py));
     assert!(!is_lang_internal_import("django/db", py));
 }
+
+#[test]
+fn js_relative_imports_are_internal() {
+    let js = &language::javascript::JAVASCRIPT;
+    assert!(is_lang_internal_import("./utils", js));
+    assert!(is_lang_internal_import("../types/types", js));
+    assert!(is_lang_internal_import("./components/Button", js));
+}
+
+#[test]
+fn js_package_imports_not_internal() {
+    let js = &language::javascript::JAVASCRIPT;
+    assert!(!is_lang_internal_import("react", js));
+    assert!(!is_lang_internal_import("express/Router", js));
+    assert!(!is_lang_internal_import("@types/node", js));
+}
