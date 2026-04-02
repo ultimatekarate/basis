@@ -6,10 +6,7 @@ use basis_cli::spec::*;
 
 fn make_spec_with_newtypes() -> BasisSpec {
     BasisSpec {
-        governance: Governance {
-            version: "1.0".into(),
-            model: None,
-        },
+        governance: Governance::new("1.0"),
         extends: None,
         layers: HashMap::new(),
         newtypes: Some(NewtypeConfig {
@@ -45,10 +42,7 @@ fn make_spec_with_newtypes() -> BasisSpec {
 
 fn make_spec_with_unions() -> BasisSpec {
     BasisSpec {
-        governance: Governance {
-            version: "1.0".into(),
-            model: None,
-        },
+        governance: Governance::new("1.0"),
         extends: None,
         layers: HashMap::new(),
         newtypes: None,
@@ -99,10 +93,7 @@ fn make_spec_with_purity() -> BasisSpec {
     );
 
     BasisSpec {
-        governance: Governance {
-            version: "1.0".into(),
-            model: None,
-        },
+        governance: Governance::new("1.0"),
         extends: None,
         layers,
         newtypes: None,
@@ -224,7 +215,7 @@ fn completeness_detects_missing_variants_match() {
         &spec,
         dir.path(),
         &basis_cli::language::LangRegistry::new(),
-    );
+    ).violations;
     assert!(!violations.is_empty(), "Should detect missing variants");
     let v = &violations[0];
     assert_eq!(v.union_name, "OrderStatus");
@@ -244,7 +235,7 @@ fn completeness_wildcard_is_exhaustive() {
         &spec,
         dir.path(),
         &basis_cli::language::LangRegistry::new(),
-    );
+    ).violations;
     assert!(
         violations.is_empty(),
         "Wildcard should be considered exhaustive"
@@ -262,7 +253,7 @@ fn completeness_all_variants_no_violation() {
         &spec,
         dir.path(),
         &basis_cli::language::LangRegistry::new(),
-    );
+    ).violations;
     assert!(violations.is_empty(), "All variants covered — no violation");
 }
 
@@ -277,7 +268,7 @@ fn completeness_elif_with_else_is_exhaustive() {
         &spec,
         dir.path(),
         &basis_cli::language::LangRegistry::new(),
-    );
+    ).violations;
     assert!(
         violations.is_empty(),
         "else clause should be considered exhaustive"
@@ -299,7 +290,7 @@ fn completeness_disabled_returns_empty() {
         &spec,
         dir.path(),
         &basis_cli::language::LangRegistry::new(),
-    );
+    ).violations;
     assert!(violations.is_empty());
 }
 
@@ -370,6 +361,185 @@ fn purity_disabled_returns_empty() {
     assert!(violations.is_empty());
 }
 
+#[test]
+fn purity_detects_forbidden_call_in_strict_layer() {
+    let spec = make_spec_with_purity();
+    let dir = tempfile::tempdir().unwrap();
+    write_file(
+        dir.path(),
+        "src/logic/compute.py",
+        "def compute():\n    print(\"hello\")\n",
+    );
+
+    let violations =
+        purity::check_purity(&spec, dir.path(), &basis_cli::language::LangRegistry::new());
+    assert!(!violations.is_empty(), "Should detect forbidden call in strict layer");
+    let v = &violations[0];
+    assert!(v.forbidden.contains("print"), "Expected print in forbidden, got: {}", v.forbidden);
+    assert_eq!(v.category, "stdout", "Expected stdout category, got: {}", v.category);
+}
+
+#[test]
+fn purity_call_in_non_strict_layer_allowed() {
+    let spec = make_spec_with_purity();
+    let dir = tempfile::tempdir().unwrap();
+    write_file(
+        dir.path(),
+        "src/api/server.py",
+        "def serve():\n    print(\"listening\")\n",
+    );
+
+    let violations =
+        purity::check_purity(&spec, dir.path(), &basis_cli::language::LangRegistry::new());
+    assert!(violations.is_empty(), "Non-strict layer should allow calls");
+}
+
+#[test]
+fn purity_multiple_violations_same_file() {
+    let spec = make_spec_with_purity();
+    let dir = tempfile::tempdir().unwrap();
+    write_file(
+        dir.path(),
+        "src/logic/compute.py",
+        "import requests\n\ndef compute():\n    print(\"hello\")\n",
+    );
+
+    let violations =
+        purity::check_purity(&spec, dir.path(), &basis_cli::language::LangRegistry::new());
+    assert!(
+        violations.len() >= 2,
+        "Should detect both import and call violations, got {}",
+        violations.len()
+    );
+}
+
+#[test]
+fn purity_rust_detects_forbidden_import() {
+    let spec = make_spec_with_purity();
+    let dir = tempfile::tempdir().unwrap();
+    write_file(
+        dir.path(),
+        "src/logic/compute.rs",
+        "use std::fs;\n\nfn compute() {}\n",
+    );
+
+    let violations =
+        purity::check_purity(&spec, dir.path(), &basis_cli::language::LangRegistry::new());
+    assert!(!violations.is_empty(), "Should detect forbidden Rust import");
+    let v = &violations[0];
+    assert!(v.forbidden.contains("std::fs"), "Expected std::fs, got: {}", v.forbidden);
+    assert_eq!(v.category, "file_io");
+}
+
+#[test]
+fn purity_per_layer_also_forbid() {
+    let mut spec = make_spec_with_purity();
+    spec.purity.as_mut().unwrap().per_layer.insert(
+        "laboratory".to_string(),
+        LayerPurityOverride {
+            also_forbid: vec!["subprocess".into()],
+            allow: vec![],
+        },
+    );
+    let dir = tempfile::tempdir().unwrap();
+    write_file(
+        dir.path(),
+        "src/logic/compute.py",
+        "import subprocess\n\ndef compute(): pass\n",
+    );
+
+    let violations =
+        purity::check_purity(&spec, dir.path(), &basis_cli::language::LangRegistry::new());
+    assert!(
+        !violations.is_empty(),
+        "also_forbid should add subprocess as forbidden"
+    );
+    assert!(violations.iter().any(|v| v.forbidden.contains("subprocess")));
+}
+
+#[test]
+fn purity_per_layer_allow_exempts() {
+    let mut spec = make_spec_with_purity();
+    spec.purity.as_mut().unwrap().per_layer.insert(
+        "laboratory".to_string(),
+        LayerPurityOverride {
+            also_forbid: vec![],
+            allow: vec!["network_io".into()],
+        },
+    );
+    let dir = tempfile::tempdir().unwrap();
+    write_file(
+        dir.path(),
+        "src/logic/compute.py",
+        "import requests\n\ndef compute(): pass\n",
+    );
+
+    let violations =
+        purity::check_purity(&spec, dir.path(), &basis_cli::language::LangRegistry::new());
+    assert!(
+        violations.is_empty(),
+        "allow should exempt network_io — got {} violations",
+        violations.len()
+    );
+}
+
+#[test]
+fn purity_string_literal_not_flagged() {
+    let spec = make_spec_with_purity();
+    let dir = tempfile::tempdir().unwrap();
+    write_file(
+        dir.path(),
+        "src/logic/compute.py",
+        "def compute():\n    msg = \"open(file)\"\n    return msg\n",
+    );
+
+    let violations =
+        purity::check_purity(&spec, dir.path(), &basis_cli::language::LangRegistry::new());
+    assert!(
+        violations.is_empty(),
+        "Pattern inside string literal should not trigger — got {} violations",
+        violations.len()
+    );
+}
+
+#[test]
+fn purity_test_file_skipped_when_check_tests_false() {
+    let spec = make_spec_with_purity();
+    // governance.check_tests defaults to false
+    assert!(!spec.governance.check_tests);
+    let dir = tempfile::tempdir().unwrap();
+    write_file(
+        dir.path(),
+        "src/logic/test_compute.py",
+        "import requests\n\ndef test_compute(): pass\n",
+    );
+
+    let violations =
+        purity::check_purity(&spec, dir.path(), &basis_cli::language::LangRegistry::new());
+    assert!(
+        violations.is_empty(),
+        "Test files should be skipped when check_tests is false"
+    );
+}
+
+#[test]
+fn purity_file_not_in_any_layer_ignored() {
+    let spec = make_spec_with_purity();
+    let dir = tempfile::tempdir().unwrap();
+    write_file(
+        dir.path(),
+        "src/other/compute.py",
+        "import requests\n\ndef compute(): pass\n",
+    );
+
+    let violations =
+        purity::check_purity(&spec, dir.path(), &basis_cli::language::LangRegistry::new());
+    assert!(
+        violations.is_empty(),
+        "Files not in any layer should not produce violations"
+    );
+}
+
 // ── Polyglot language scoping tests ──────────────────────────────────
 //
 // These tests simulate a Python/TypeScript polyglot repo (like the
@@ -378,10 +548,7 @@ fn purity_disabled_returns_empty() {
 
 fn make_polyglot_spec() -> BasisSpec {
     BasisSpec {
-        governance: Governance {
-            version: "1.0".into(),
-            model: None,
-        },
+        governance: Governance::new("1.0"),
         extends: None,
         layers: HashMap::new(),
         newtypes: Some(NewtypeConfig {
@@ -622,7 +789,7 @@ fn polyglot_shared_union_flags_python() {
         &spec,
         dir.path(),
         &basis_cli::language::LangRegistry::new(),
-    );
+    ).violations;
     assert_eq!(violations.len(), 1);
     assert_eq!(violations[0].union_name, "DocumentState");
     assert!(violations[0].missing_variants.contains(&"Published".to_string()));
@@ -644,7 +811,7 @@ fn polyglot_shared_union_flags_typescript() {
         &spec,
         dir.path(),
         &basis_cli::language::LangRegistry::new(),
-    );
+    ).violations;
     assert_eq!(violations.len(), 1);
     assert_eq!(violations[0].union_name, "DocumentState");
 }
@@ -664,7 +831,7 @@ fn polyglot_python_only_union_does_not_flag_typescript() {
         &spec,
         dir.path(),
         &basis_cli::language::LangRegistry::new(),
-    );
+    ).violations;
     assert!(
         violations.is_empty(),
         "Python-only TaskStatus should not flag TypeScript files, got: {:?}",
@@ -687,7 +854,7 @@ fn polyglot_python_only_union_flags_python() {
         &spec,
         dir.path(),
         &basis_cli::language::LangRegistry::new(),
-    );
+    ).violations;
     assert_eq!(violations.len(), 1);
     assert_eq!(violations[0].union_name, "TaskStatus");
     assert!(violations[0].missing_variants.contains(&"Completed".to_string()));
@@ -739,7 +906,7 @@ fn polyglot_mixed_repo_completeness() {
         &spec,
         dir.path(),
         &basis_cli::language::LangRegistry::new(),
-    );
+    ).violations;
 
     let py_violations: Vec<_> = violations.iter().filter(|v| v.file.contains("backend")).collect();
     let ts_violations: Vec<_> = violations.iter().filter(|v| v.file.contains("frontend")).collect();

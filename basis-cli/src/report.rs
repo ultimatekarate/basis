@@ -148,22 +148,6 @@ fn generate_text(spec: &BasisSpec) -> String {
             out.push('\n');
         }
 
-        if !boundaries.external.is_empty() {
-            out.push_str("== External Dependency Rules ==\n\n");
-            let mut externals: Vec<_> = boundaries.external.iter().collect();
-            externals.sort_by_key(|(k, _)| (*k).clone());
-
-            for (layer, rules) in &externals {
-                out.push_str(&format!("  {layer}\n"));
-                if !rules.allow.is_empty() {
-                    out.push_str(&format!("    Allow: {}\n", rules.allow.join(", ")));
-                }
-                if !rules.deny_patterns.is_empty() {
-                    out.push_str(&format!("    Deny: {}\n", rules.deny_patterns.join(", ")));
-                }
-            }
-            out.push('\n');
-        }
     }
 
     out
@@ -178,8 +162,8 @@ mod tests {
     fn minimal_spec() -> BasisSpec {
         BasisSpec {
             governance: Governance {
-                version: "1.0".into(),
                 model: Some("linguistic".into()),
+                ..Governance::new("1.0")
             },
             extends: None,
             layers: HashMap::new(),
@@ -295,7 +279,6 @@ mod tests {
                 action: "deny".into(),
                 reason: Some("not allowed".into()),
             }],
-            external: HashMap::new(),
         });
         let report = generate_report(&spec, "text");
         assert!(report.contains("dict"));
@@ -334,10 +317,7 @@ mod tests {
     #[test]
     fn empty_spec_text_report() {
         let spec = BasisSpec {
-            governance: Governance {
-                version: "1.0".into(),
-                model: None,
-            },
+            governance: Governance::new("1.0"),
             extends: None,
             layers: HashMap::new(),
             newtypes: None,

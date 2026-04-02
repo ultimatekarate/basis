@@ -19,9 +19,10 @@ A `basis.yaml` file describes your architecture. It has five sections, all optio
 ```yaml
 governance:
   version: "1.0"
+  check_tests: false    # default — test files are excluded from all checks
 ```
 
-That's a valid spec. It doesn't enforce anything yet. You turn on what you need.
+That's a valid spec. It doesn't enforce anything yet. You turn on what you need. The `check_tests` field controls whether test files are subject to governance checks. The default (`false`) means governance applies to production code only. Set it to `true` if you want test code held to the same architectural constraints.
 
 ### Layers
 
@@ -264,6 +265,26 @@ exhaustive_matching:
 ```
 
 When `languages:` is omitted, the union applies to all languages. When present, Basis only checks match statements in files of those languages. `basis generate` skips unions that don't apply to the target language.
+
+#### How Completeness Checking Works
+
+**Match constructs scanned.** Each language's native dispatch construct is scanned: `match`/`case` (Python, Rust), `switch`/`case` (JS, Go, Java, C#), `when` (Kotlin), `switch` (Swift). Python additionally scans `if`/`elif` chains where each branch compares against a value with `==` — this is because Python uses `if`/`elif` for exhaustive dispatch where other languages have `switch`.
+
+**Union matching.** Basis collects the case values from each match/switch statement and picks the declared union with the most matching variants (greedy overlap). If two unions share a variant name, a warning is printed to stderr — the later-declared union wins for that variant.
+
+**Wildcard keywords that suppress violations:**
+
+| Language | Catch-all |
+|----------|-----------|
+| Python | `case _:`, `else:` |
+| JS, Java, C# | `default:` |
+| Rust | `_ =>` |
+| Go | `default:` |
+| Kotlin | `else ->` |
+| Swift | `default:` |
+| Ruby | `else` |
+
+**Case value extraction.** Basis normalizes case values before matching against union variants: quotes are stripped (`"Pending"` → `Pending`), dot-prefixed paths are reduced (`OrderStatus.Pending` → `Pending`), path syntax is reduced (`OrderStatus::Pending` → `Pending`), constructor calls are reduced (`Pending()` → `Pending`), and Rust OR patterns (`A | B`) are split into individual variants.
 
 ### External Layers (Placement Axis)
 
@@ -790,7 +811,7 @@ These are deliberate constraints. Basis is a 50ms string scanner, not a type sys
 
 ## Test File Exclusion
 
-Basis automatically excludes test files from checking. Each language has its own conventions:
+By default, Basis excludes test files from checking (`check_tests: false` in the governance section). Each language has its own conventions for identifying test files:
 
 - Python: files in `tests/` or `__tests__/`, files starting with `test_` or ending with `_test.py`
 - Rust: files in `tests/`, files ending with `_test.rs`
@@ -798,7 +819,13 @@ Basis automatically excludes test files from checking. Each language has its own
 - Java/Kotlin: files in `test/`, files ending with `Test.java` or `Tests.java`
 - And so on for each language
 
-Test code can import anything, use raw primitives, and skip enum arms. The governance applies to production code.
+Test code can import anything, use raw primitives, and skip enum arms. To apply governance to test files as well, set `check_tests: true` in your spec:
+
+```yaml
+governance:
+  version: "1.0"
+  check_tests: true
+```
 
 ## Why It Works: A Case Study
 

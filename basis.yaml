@@ -1,6 +1,7 @@
 governance:
   version: "1.0"
   model: linguistic
+  check_tests: false
 
 # ── Basis governs itself ──────────────────────────────────────────────
 #

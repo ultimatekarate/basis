@@ -93,7 +93,6 @@ pub fn infer_boundaries(
     Some(BoundaryConfig {
         enabled: true,
         rules,
-        external: HashMap::new(),
     })
 }
 

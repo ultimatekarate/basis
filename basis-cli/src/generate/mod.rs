@@ -106,10 +106,7 @@ mod tests {
 
     fn test_spec() -> BasisSpec {
         BasisSpec {
-            governance: Governance {
-                version: "1.0".to_string(),
-                model: None,
-            },
+            governance: Governance::new("1.0"),
             extends: None,
             layers: Default::default(),
             newtypes: Some(NewtypeConfig {

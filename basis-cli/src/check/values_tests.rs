@@ -68,10 +68,7 @@ fn wraps_to_primitives_unknown() {
 fn build_type_map_groups_by_primitive() {
     let registry = language::LangRegistry::new();
     let spec = crate::spec::BasisSpec {
-        governance: crate::spec::Governance {
-            version: "1.0".into(),
-            model: None,
-        },
+        governance: crate::spec::Governance::new("1.0"),
         extends: None,
         layers: HashMap::new(),
         newtypes: Some(crate::spec::NewtypeConfig {
@@ -108,10 +105,7 @@ fn build_type_map_groups_by_primitive() {
 fn build_type_map_disabled() {
     let registry = language::LangRegistry::new();
     let spec = crate::spec::BasisSpec {
-        governance: crate::spec::Governance {
-            version: "1.0".into(),
-            model: None,
-        },
+        governance: crate::spec::Governance::new("1.0"),
         extends: None,
         layers: HashMap::new(),
         newtypes: Some(crate::spec::NewtypeConfig {

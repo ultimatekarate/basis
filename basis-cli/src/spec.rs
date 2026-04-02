@@ -15,7 +15,7 @@ pub enum SpecError {
 pub struct BasisSpec {
     pub governance: Governance,
     /// Path to a parent spec to inherit from. Resolved relative to this spec file.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub extends: Option<String>,
     #[serde(default)]
     pub layers: HashMap<String, Layer>,
@@ -29,11 +29,25 @@ pub struct BasisSpec {
     pub boundaries: Option<BoundaryConfig>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct Governance {
+    #[serde(default)]
     pub version: String,
     #[serde(default)]
     pub model: Option<String>,
+    /// Whether to apply governance checks to test files.
+    /// Default: false — governance applies to production code only.
+    #[serde(default)]
+    pub check_tests: bool,
+}
+
+impl Governance {
+    pub fn new(version: &str) -> Self {
+        Self {
+            version: version.into(),
+            ..Default::default()
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -112,8 +126,6 @@ pub struct BoundaryConfig {
     pub enabled: bool,
     #[serde(default)]
     pub rules: Vec<BoundaryRule>,
-    #[serde(default)]
-    pub external: HashMap<String, ExternalRules>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -125,13 +137,6 @@ pub struct BoundaryRule {
     pub reason: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ExternalRules {
-    #[serde(default)]
-    pub allow: Vec<String>,
-    #[serde(default)]
-    pub deny_patterns: Vec<String>,
-}
 
 pub const KNOWN_LANGUAGES: &[&str] = &[
     "python", "rust", "js", "go", "java", "kotlin", "ruby", "swift", "csharp",

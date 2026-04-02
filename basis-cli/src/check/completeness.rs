@@ -17,6 +17,12 @@ pub struct Violation {
     pub missing_variants: Vec<String>,
 }
 
+/// Result of a completeness check — violations plus any warnings.
+pub struct CompletenessResult {
+    pub violations: Vec<Violation>,
+    pub warnings: Vec<String>,
+}
+
 impl std::fmt::Display for Violation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -31,16 +37,18 @@ impl std::fmt::Display for Violation {
 }
 
 /// Build variant index and union map filtered to unions that apply to a specific language.
+/// Returns warnings when two unions declare the same variant name (last-wins in the index).
 fn build_indices_for_lang(
     spec: &BasisSpec,
     lang_name: &str,
-) -> (VariantIndex, UnionMap) {
+) -> (VariantIndex, UnionMap, Vec<String>) {
     let mut variant_index: VariantIndex = HashMap::new();
     let mut union_map: UnionMap = HashMap::new();
+    let mut warnings: Vec<String> = Vec::new();
 
     if let Some(exhaustive) = &spec.exhaustive_matching {
         if !exhaustive.enabled {
-            return (variant_index, union_map);
+            return (variant_index, union_map, warnings);
         }
         for union_def in &exhaustive.unions {
             if !applies_to_lang(&union_def.languages, lang_name) {
@@ -48,6 +56,14 @@ fn build_indices_for_lang(
             }
             let variant_set: HashSet<String> = union_def.variants.iter().cloned().collect();
             for variant in &union_def.variants {
+                if let Some((existing_union, _)) = variant_index.get(variant) {
+                    if existing_union != &union_def.name {
+                        warnings.push(format!(
+                            "warning: variant '{}' appears in both '{}' and '{}' — matches will resolve to '{}'",
+                            variant, existing_union, union_def.name, union_def.name
+                        ));
+                    }
+                }
                 variant_index.insert(
                     variant.clone(),
                     (union_def.name.clone(), variant_set.clone()),
@@ -57,7 +73,7 @@ fn build_indices_for_lang(
         }
     }
 
-    (variant_index, union_map)
+    (variant_index, union_map, warnings)
 }
 
 /// Check all source files for non-exhaustive match/switch statements.
@@ -65,22 +81,30 @@ pub fn check_completeness(
     spec: &BasisSpec,
     root: &Path,
     registry: &LangRegistry,
-) -> Vec<Violation> {
+) -> CompletenessResult {
     // Quick check: is exhaustive matching enabled at all?
     let enabled = spec
         .exhaustive_matching
         .as_ref()
         .is_some_and(|e| e.enabled && !e.unions.is_empty());
     if !enabled {
-        return Vec::new();
+        return CompletenessResult {
+            violations: Vec::new(),
+            warnings: Vec::new(),
+        };
     }
 
-    // Build per-language indices
+    // Build per-language indices, collecting any variant collision warnings
+    let mut all_warnings: Vec<String> = Vec::new();
     let mut lang_indices: HashMap<&str, (VariantIndex, UnionMap)> = HashMap::new();
     for lang in registry.all() {
-        let indices = build_indices_for_lang(spec, lang.name);
-        lang_indices.insert(lang.name, indices);
+        let (vi, um, warnings) = build_indices_for_lang(spec, lang.name);
+        all_warnings.extend(warnings);
+        lang_indices.insert(lang.name, (vi, um));
     }
+    // Deduplicate warnings (same collision reported for each language)
+    all_warnings.sort();
+    all_warnings.dedup();
 
     let mut violations = Vec::new();
 
@@ -95,8 +119,8 @@ pub fn check_completeness(
             return;
         };
 
-        // Skip test files — governance applies to production code only
-        if language::is_test_file(&rel, lang) {
+        // Skip test files unless check_tests is enabled in the spec
+        if !spec.governance.check_tests && language::is_test_file(&rel, lang) {
             return;
         }
 
@@ -125,7 +149,10 @@ pub fn check_completeness(
         }
     });
 
-    violations
+    CompletenessResult {
+        violations,
+        warnings: all_warnings,
+    }
 }
 
 #[cfg(test)]
@@ -428,5 +455,74 @@ mod tests {
         assert!(s.contains("OrderStatus"));
         assert!(s.contains("Shipped"));
         assert!(s.contains("help: add case arms"));
+    }
+
+    // ── Variant collision warnings ───────────────────────────
+
+    #[test]
+    fn shared_variant_emits_warning() {
+        use crate::spec::{BasisSpec, ExhaustiveConfig, Governance, UnionDef};
+
+        let spec = BasisSpec {
+            governance: Governance::new("1.0"),
+            extends: None,
+            layers: HashMap::new(),
+            newtypes: None,
+            exhaustive_matching: Some(ExhaustiveConfig {
+                enabled: true,
+                unions: vec![
+                    UnionDef {
+                        name: "OrderStatus".into(),
+                        variants: vec!["Active".into(), "Pending".into(), "Closed".into()],
+                        languages: None,
+                    },
+                    UnionDef {
+                        name: "TaskStatus".into(),
+                        variants: vec!["Active".into(), "Paused".into(), "Done".into()],
+                        languages: None,
+                    },
+                ],
+            }),
+            purity: None,
+            boundaries: None,
+        };
+
+        let (_, _, warnings) = build_indices_for_lang(&spec, "python");
+        assert_eq!(warnings.len(), 1, "Expected one collision warning, got: {warnings:?}");
+        assert!(warnings[0].contains("Active"), "Warning should name the colliding variant");
+        assert!(warnings[0].contains("OrderStatus"), "Warning should name first union");
+        assert!(warnings[0].contains("TaskStatus"), "Warning should name second union");
+    }
+
+    #[test]
+    fn no_shared_variants_no_warning() {
+        use crate::spec::{BasisSpec, ExhaustiveConfig, Governance, UnionDef};
+
+        let spec = BasisSpec {
+            governance: Governance::new("1.0"),
+            extends: None,
+            layers: HashMap::new(),
+            newtypes: None,
+            exhaustive_matching: Some(ExhaustiveConfig {
+                enabled: true,
+                unions: vec![
+                    UnionDef {
+                        name: "OrderStatus".into(),
+                        variants: vec!["Pending".into(), "Shipped".into()],
+                        languages: None,
+                    },
+                    UnionDef {
+                        name: "TaskStatus".into(),
+                        variants: vec!["Queued".into(), "Running".into()],
+                        languages: None,
+                    },
+                ],
+            }),
+            purity: None,
+            boundaries: None,
+        };
+
+        let (_, _, warnings) = build_indices_for_lang(&spec, "python");
+        assert!(warnings.is_empty(), "No shared variants — no warnings expected");
     }
 }

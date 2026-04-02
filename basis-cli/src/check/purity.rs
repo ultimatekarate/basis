@@ -201,7 +201,8 @@ pub fn check_purity(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -> V
             return;
         };
 
-        if language::is_test_file(&rel, lang) {
+        // Skip test files unless check_tests is enabled in the spec
+        if !spec.governance.check_tests && language::is_test_file(&rel, lang) {
             return;
         }
 
@@ -229,8 +230,14 @@ pub fn check_purity(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -> V
         };
 
         // Apply language-specific preprocessing (e.g., strip #[cfg(test)] for Rust)
-        let content = if let Some(preprocess) = lang.preprocess {
-            preprocess(&content)
+        // Only when check_tests is false — if the user wants tests checked,
+        // the preprocessor must not strip test sections.
+        let content = if !spec.governance.check_tests {
+            if let Some(preprocess) = lang.preprocess {
+                preprocess(&content)
+            } else {
+                content
+            }
         } else {
             content
         };
@@ -472,10 +479,7 @@ mod tests {
         );
 
         BasisSpec {
-            governance: Governance {
-                version: "1.0".into(),
-                model: None,
-            },
+            governance: Governance::new("1.0"),
             extends: None,
             layers,
             newtypes: None,
@@ -544,10 +548,7 @@ mod tests {
     #[test]
     fn strict_layers_none_strict() {
         let spec = BasisSpec {
-            governance: Governance {
-                version: "1.0".into(),
-                model: None,
-            },
+            governance: Governance::new("1.0"),
             extends: None,
             layers: {
                 let mut m = HashMap::new();

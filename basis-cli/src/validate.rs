@@ -266,18 +266,6 @@ fn validate_external_layers(spec: &BasisSpec, errors: &mut Vec<ValidationError>)
         }
     }
 
-    // Check for conflict: both external layers and boundaries.external defined
-    let has_external_layers = spec.layers.values().any(|l| l.external);
-    let has_boundaries_external = spec
-        .boundaries
-        .as_ref()
-        .map(|b| !b.external.is_empty())
-        .unwrap_or(false);
-    if has_external_layers && has_boundaries_external {
-        errors.push(ValidationError(
-            "cannot use both external layers and boundaries.external — migrate boundaries.external to external layers".into()
-        ));
-    }
 }
 
 fn validate_boundaries(spec: &BasisSpec, errors: &mut Vec<ValidationError>) {
@@ -308,13 +296,6 @@ fn validate_boundaries(spec: &BasisSpec, errors: &mut Vec<ValidationError>) {
         }
     }
 
-    for layer_name in boundaries.external.keys() {
-        if !layer_names.contains(layer_name.as_str()) {
-            errors.push(ValidationError(format!(
-                "boundaries.external references unknown layer '{layer_name}'"
-            )));
-        }
-    }
 }
 
 fn validate_purity(spec: &BasisSpec, errors: &mut Vec<ValidationError>) {

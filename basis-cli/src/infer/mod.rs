@@ -238,10 +238,7 @@ pub fn assemble_spec(
     };
 
     BasisSpec {
-        governance: Governance {
-            version: "1.0".to_string(),
-            model: None,
-        },
+        governance: Governance::new("1.0"),
         extends: None,
         layers,
         newtypes: newtypes_config,

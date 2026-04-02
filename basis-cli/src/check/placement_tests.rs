@@ -231,10 +231,7 @@ fn resolve_layer_longest_prefix_wins() {
     let map = build_layer_map(&{
         let mut spec = BasisSpec {
         extends: None,
-            governance: crate::spec::Governance {
-                version: "1.0".into(),
-                model: None,
-            },
+            governance: crate::spec::Governance::new("1.0"),
             layers: HashMap::new(),
             newtypes: None,
             exhaustive_matching: None,
@@ -279,10 +276,7 @@ fn resolve_layer_longest_prefix_wins() {
 fn no_deps_means_denied() {
     let spec = BasisSpec {
         extends: None,
-        governance: crate::spec::Governance {
-            version: "1.0".into(),
-            model: None,
-        },
+        governance: crate::spec::Governance::new("1.0"),
         layers: HashMap::new(),
         newtypes: None,
         exhaustive_matching: None,
@@ -296,10 +290,7 @@ fn no_deps_means_denied() {
 fn explicit_allow_rule() {
     let spec = BasisSpec {
         extends: None,
-        governance: crate::spec::Governance {
-            version: "1.0".into(),
-            model: None,
-        },
+        governance: crate::spec::Governance::new("1.0"),
         layers: HashMap::new(),
         newtypes: None,
         exhaustive_matching: None,
@@ -312,7 +303,6 @@ fn explicit_allow_rule() {
                 action: "allow".into(),
                 reason: None,
             }],
-            external: HashMap::new(),
         }),
     };
     assert!(is_allowed("hands", "dictionary", &spec));
@@ -322,10 +312,7 @@ fn explicit_allow_rule() {
 fn explicit_deny_rule() {
     let spec = BasisSpec {
         extends: None,
-        governance: crate::spec::Governance {
-            version: "1.0".into(),
-            model: None,
-        },
+        governance: crate::spec::Governance::new("1.0"),
         layers: HashMap::new(),
         newtypes: None,
         exhaustive_matching: None,
@@ -338,7 +325,6 @@ fn explicit_deny_rule() {
                 action: "deny".into(),
                 reason: Some("no".into()),
             }],
-            external: HashMap::new(),
         }),
     };
     assert!(!is_allowed("dictionary", "hands", &spec));
@@ -369,10 +355,7 @@ fn depends_on_fallback() {
     );
     let spec = BasisSpec {
         extends: None,
-        governance: crate::spec::Governance {
-            version: "1.0".into(),
-            model: None,
-        },
+        governance: crate::spec::Governance::new("1.0"),
         layers,
         newtypes: None,
         exhaustive_matching: None,
@@ -418,10 +401,7 @@ fn transitive_deps_computed() {
     );
     let spec = BasisSpec {
         extends: None,
-        governance: crate::spec::Governance {
-            version: "1.0".into(),
-            model: None,
-        },
+        governance: crate::spec::Governance::new("1.0"),
         layers,
         newtypes: None,
         exhaustive_matching: None,
@@ -439,10 +419,7 @@ fn transitive_deps_computed() {
 fn get_deny_reason_from_rule() {
     let spec = BasisSpec {
         extends: None,
-        governance: crate::spec::Governance {
-            version: "1.0".into(),
-            model: None,
-        },
+        governance: crate::spec::Governance::new("1.0"),
         layers: HashMap::new(),
         newtypes: None,
         exhaustive_matching: None,
@@ -455,7 +432,6 @@ fn get_deny_reason_from_rule() {
                 action: "deny".into(),
                 reason: Some("not allowed".into()),
             }],
-            external: HashMap::new(),
         }),
     };
     assert_eq!(get_deny_reason(&spec, "a", "b"), "not allowed");
@@ -465,10 +441,7 @@ fn get_deny_reason_from_rule() {
 fn get_deny_reason_default() {
     let spec = BasisSpec {
         extends: None,
-        governance: crate::spec::Governance {
-            version: "1.0".into(),
-            model: None,
-        },
+        governance: crate::spec::Governance::new("1.0"),
         layers: HashMap::new(),
         newtypes: None,
         exhaustive_matching: None,
@@ -496,51 +469,6 @@ fn violation_display_format() {
     assert!(s.contains("src/logic"));
     assert!(s.contains("dictionary"));
     assert!(s.contains("help:"));
-}
-
-// ── deny_pattern_matches ──────────────────────────────
-
-#[test]
-fn deny_pattern_no_wildcard_substring() {
-    assert!(deny_pattern_matches("tokio::runtime", "tokio"));
-    assert!(deny_pattern_matches("async-std", "async"));
-    assert!(!deny_pattern_matches("requests", "tokio"));
-}
-
-#[test]
-fn deny_pattern_trailing_wildcard() {
-    assert!(deny_pattern_matches("async-std", "async-*"));
-    assert!(deny_pattern_matches("async-trait", "async-*"));
-    assert!(deny_pattern_matches("async-", "async-*"));
-    assert!(!deny_pattern_matches("sync-std", "async-*"));
-}
-
-#[test]
-fn deny_pattern_leading_wildcard() {
-    assert!(deny_pattern_matches("node:fs", "*:fs"));
-    assert!(deny_pattern_matches("something:fs", "*:fs"));
-    assert!(!deny_pattern_matches("node:http", "*:fs"));
-}
-
-#[test]
-fn deny_pattern_prefix_wildcard() {
-    assert!(deny_pattern_matches("node:fs", "node:*"));
-    assert!(deny_pattern_matches("node:child_process", "node:*"));
-    assert!(!deny_pattern_matches("deno:fs", "node:*"));
-}
-
-#[test]
-fn deny_pattern_middle_wildcard() {
-    assert!(deny_pattern_matches("std::io::File", "std::*::File"));
-    assert!(deny_pattern_matches("std::fs::File", "std::*::File"));
-    assert!(!deny_pattern_matches("std::io::Read", "std::*::File"));
-}
-
-#[test]
-fn deny_pattern_lone_wildcard() {
-    // "*" matches everything
-    assert!(deny_pattern_matches("anything", "*"));
-    assert!(deny_pattern_matches("", "*"));
 }
 
 // ── external_entry_matches ───────────────────────────────
@@ -604,10 +532,7 @@ fn build_external_map_only_external_layers() {
     );
     let spec = BasisSpec {
         extends: None,
-        governance: crate::spec::Governance {
-            version: "1.0".into(),
-            model: None,
-        },
+        governance: crate::spec::Governance::new("1.0"),
         layers,
         newtypes: None,
         exhaustive_matching: None,
@@ -703,10 +628,7 @@ fn internal_layer_excluded_from_layer_map_when_external() {
     );
     let spec = BasisSpec {
         extends: None,
-        governance: crate::spec::Governance {
-            version: "1.0".into(),
-            model: None,
-        },
+        governance: crate::spec::Governance::new("1.0"),
         layers,
         newtypes: None,
         exhaustive_matching: None,
@@ -749,10 +671,7 @@ fn unmatched_import_not_flagged() {
     );
     let spec = BasisSpec {
         extends: None,
-        governance: crate::spec::Governance {
-            version: "1.0".into(),
-            model: None,
-        },
+        governance: crate::spec::Governance::new("1.0"),
         layers,
         newtypes: None,
         exhaustive_matching: None,

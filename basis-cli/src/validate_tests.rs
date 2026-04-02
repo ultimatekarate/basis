@@ -3,10 +3,7 @@ use crate::spec::*;
 
 fn minimal_spec() -> BasisSpec {
     BasisSpec {
-        governance: Governance {
-            version: "1.0".into(),
-            model: None,
-        },
+        governance: Governance::new("1.0"),
         extends: None,
         layers: HashMap::new(),
         newtypes: None,
@@ -31,10 +28,7 @@ fn spec_with_layers(layers: Vec<(&str, Vec<&str>)>) -> BasisSpec {
         );
     }
     BasisSpec {
-        governance: Governance {
-            version: "1.0".into(),
-            model: None,
-        },
+        governance: Governance::new("1.0"),
         extends: None,
         layers: map,
         newtypes: None,
@@ -119,7 +113,6 @@ fn valid_boundaries() {
             action: "deny".into(),
             reason: None,
         }],
-        external: HashMap::new(),
     });
     assert!(validate(&spec).is_empty());
 }
@@ -135,7 +128,6 @@ fn boundary_unknown_from_layer() {
             action: "deny".into(),
             reason: None,
         }],
-        external: HashMap::new(),
     });
     let errors = validate(&spec);
     assert!(errors.iter().any(|e| format!("{e}").contains("ghost")));
@@ -152,30 +144,9 @@ fn boundary_invalid_action() {
             action: "maybe".into(),
             reason: None,
         }],
-        external: HashMap::new(),
     });
     let errors = validate(&spec);
     assert!(errors.iter().any(|e| format!("{e}").contains("maybe")));
-}
-
-#[test]
-fn boundary_external_unknown_layer() {
-    let mut spec = spec_with_layers(vec![("a", vec![])]);
-    let mut external = HashMap::new();
-    external.insert(
-        "ghost".to_string(),
-        ExternalRules {
-            allow: vec![],
-            deny_patterns: vec![],
-        },
-    );
-    spec.boundaries = Some(BoundaryConfig {
-        enabled: true,
-        rules: vec![],
-        external,
-    });
-    let errors = validate(&spec);
-    assert!(errors.iter().any(|e| format!("{e}").contains("ghost")));
 }
 
 #[test]
@@ -409,10 +380,7 @@ fn spec_with_strict_layer(name: &str) -> BasisSpec {
         },
     );
     BasisSpec {
-        governance: Governance {
-            version: "1.0".into(),
-            model: None,
-        },
+        governance: Governance::new("1.0"),
         extends: None,
         layers,
         newtypes: None,
@@ -696,44 +664,3 @@ fn external_layer_with_filepath_warns() {
         .any(|e| format!("{e}").contains("looks like a file path")));
 }
 
-#[test]
-fn external_and_boundaries_external_conflict() {
-    let mut spec = minimal_spec();
-    spec.layers.insert(
-        "ext".into(),
-        Layer {
-            role: "external".into(),
-            packages: vec!["serde".into()],
-            rules: HashMap::new(),
-            depends_on: vec![],
-            external: true,
-        },
-    );
-    let mut external = HashMap::new();
-    external.insert(
-        "dict".to_string(),
-        ExternalRules {
-            allow: vec!["serde".into()],
-            deny_patterns: vec![],
-        },
-    );
-    spec.layers.insert(
-        "dict".into(),
-        Layer {
-            role: "data".into(),
-            packages: vec![],
-            rules: HashMap::new(),
-            depends_on: vec![],
-            external: false,
-        },
-    );
-    spec.boundaries = Some(BoundaryConfig {
-        enabled: true,
-        rules: vec![],
-        external,
-    });
-    let errors = validate(&spec);
-    assert!(errors
-        .iter()
-        .any(|e| format!("{e}").contains("cannot use both")));
-}

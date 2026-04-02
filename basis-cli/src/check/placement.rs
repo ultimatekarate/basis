@@ -56,8 +56,8 @@ pub fn check_placement(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -
             return;
         };
 
-        // Skip test files — governance applies to production code only
-        if language::is_test_file(&rel, lang) {
+        // Skip test files unless check_tests is enabled in the spec
+        if !spec.governance.check_tests && language::is_test_file(&rel, lang) {
             return;
         }
 
@@ -67,8 +67,14 @@ pub fn check_placement(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -
         };
 
         // Apply language-specific preprocessing (e.g., strip #[cfg(test)] for Rust)
-        let content = if let Some(preprocess) = lang.preprocess {
-            preprocess(&content)
+        // Only when check_tests is false — if the user wants tests checked,
+        // the preprocessor must not strip test sections.
+        let content = if !spec.governance.check_tests {
+            if let Some(preprocess) = lang.preprocess {
+                preprocess(&content)
+            } else {
+                content
+            }
         } else {
             content
         };
@@ -83,30 +89,6 @@ pub fn check_placement(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -
             // Resolve relative imports (./ and ../) against the importing file's directory.
             // This is generic filesystem path resolution, not language-specific knowledge.
             let normalized = resolve_relative_import(&normalized, file_dir);
-
-            // Legacy: check external deny_patterns (boundaries.external) if no external layers defined
-            if !has_external_layers {
-                if let Some(boundaries) = &spec.boundaries {
-                    if let Some(ext_rules) = boundaries.external.get(&from_layer) {
-                        for pattern in &ext_rules.deny_patterns {
-                            if deny_pattern_matches(&import.module, pattern) {
-                                violations.push(Violation {
-                                    file: rel.clone(),
-                                    line: import.line,
-                                    import: import.module.clone(),
-                                    from_layer: from_layer.clone(),
-                                    to_layer: "(external)".to_string(),
-                                    reason: format!(
-                                        "import '{}' matches deny pattern '{}' for layer '{}'",
-                                        import.module, pattern, from_layer
-                                    ),
-                                });
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
 
             // Try to resolve as internal layer import
             if let Some(to_layer) = resolve_layer(&normalized, &layer_map) {
@@ -195,51 +177,6 @@ pub fn normalize_module_path(module: &str, lang: &LangDef) -> String {
         "python" | "java" | "kotlin" | "csharp" => module.replace('.', "/"),
         "rust" => module.replace("::", "/"),
         _ => module.to_string(), // Go, JS, Swift — already path-like or single-word
-    }
-}
-
-// ── Deny pattern matching ───────────────────────────────────────────────
-
-/// Match an import module against a deny pattern.
-/// Supports glob-style `*` as a wildcard (matches any substring).
-/// Without `*`, falls back to substring matching for backward compatibility.
-fn deny_pattern_matches(module: &str, pattern: &str) -> bool {
-    if pattern.contains('*') {
-        // Split on '*' and check that parts appear in order
-        let parts: Vec<&str> = pattern.split('*').collect();
-        let mut pos = 0;
-        // First part must be a prefix
-        if !parts[0].is_empty() {
-            if !module.starts_with(parts[0]) {
-                return false;
-            }
-            pos = parts[0].len();
-        }
-        // Last part must be a suffix
-        let last = parts.len() - 1;
-        if !parts[last].is_empty() {
-            if !module.ends_with(parts[last]) {
-                return false;
-            }
-            let suffix_start = module.len() - parts[last].len();
-            if suffix_start < pos {
-                return false;
-            }
-        }
-        // Middle parts must appear in order
-        for &part in &parts[1..last] {
-            if part.is_empty() {
-                continue;
-            }
-            if let Some(found) = module[pos..].find(part) {
-                pos += found + part.len();
-            } else {
-                return false;
-            }
-        }
-        true
-    } else {
-        module.contains(pattern)
     }
 }
 

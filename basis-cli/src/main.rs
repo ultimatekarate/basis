@@ -158,8 +158,11 @@ fn run_check(
 
     if run("completeness") {
         axes_checked.push("completeness".to_string());
-        let hits = check::completeness::check_completeness(spec, path, &registry);
-        for v in &hits {
+        let result = check::completeness::check_completeness(spec, path, &registry);
+        for w in &result.warnings {
+            eprintln!("{w}");
+        }
+        for v in &result.violations {
             violations.push(check::output::UnifiedViolation::from(v));
         }
     }
@@ -295,12 +298,15 @@ fn main() {
                 }
 
                 if run("completeness") {
-                    let violations =
+                    let result =
                         check::completeness::check_completeness(&spec, &path, &registry);
-                    for v in &violations {
+                    for w in &result.warnings {
+                        eprintln!("{w}");
+                    }
+                    for v in &result.violations {
                         eprintln!("{v}\n");
                     }
-                    total_violations += violations.len();
+                    total_violations += result.violations.len();
                 }
 
                 if run("purity") {
@@ -541,6 +547,16 @@ fn main() {
                 eprintln!("Error serializing spec: {e}");
                 process::exit(1);
             });
+            // Annotate cosmetic fields so new users understand them
+            let yaml = yaml
+                .replace(
+                    "model: null",
+                    "# model: linguistic  # optional — name your architectural model",
+                )
+                .replace(
+                    "check_tests: false",
+                    "check_tests: false   # set true to govern test files too",
+                );
 
             match output {
                 Some(out_path) => {

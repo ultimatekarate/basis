@@ -99,7 +99,9 @@
       "Bash(/c/Users/joevo/git-repo/basis/basis-cli/target/release/basis-cli infer:*)",
       "Bash(/c/Users/joevo/git-repo/basis/basis-cli/target/release/basis-cli check:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(grep -n \"test_file\" /c/Users/joevo/git-repo/basis/basis-cli/src/language/*.rs)",
+      "Bash(grep -n \"is_test_file\" basis-cli/src/check/*.rs)"
     ]
   }
 }

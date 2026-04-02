@@ -182,8 +182,8 @@ pub fn check_values(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -> V
             return;
         };
 
-        // Skip test files — governance applies to production code only
-        if language::is_test_file(&rel, lang) {
+        // Skip test files unless check_tests is enabled in the spec
+        if !spec.governance.check_tests && language::is_test_file(&rel, lang) {
             return;
         }
 
