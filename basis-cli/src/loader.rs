@@ -12,11 +12,23 @@ const MAX_EXTENDS_DEPTH: usize = 10;
 /// Circular extends are detected and rejected.
 /// Remote URLs (http:// or https://) in `extends` are fetched over the network.
 pub fn load_spec(path: &Path) -> Result<BasisSpec, SpecError> {
+    if !path.exists() {
+        return Err(SpecError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("spec file not found: {}", path.display()),
+        )));
+    }
     load_spec_with_chain(path, &mut HashSet::new(), 0)
 }
 
 /// Load a single spec file without resolving extends.
 pub fn load_spec_raw(path: &Path) -> Result<BasisSpec, SpecError> {
+    if !path.exists() {
+        return Err(SpecError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("spec file not found: {}", path.display()),
+        )));
+    }
     let content = std::fs::read_to_string(path)?;
     let spec: BasisSpec = serde_yaml::from_str(&content)?;
     Ok(spec)

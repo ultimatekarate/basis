@@ -1,6 +1,8 @@
 use crate::spec::BasisSpec;
 
 pub fn generate_report(spec: &BasisSpec, format: &str) -> String {
+    assert!(!spec.governance.version.is_empty(), "spec must have a governance version");
+    assert!(!format.is_empty(), "format must not be empty");
     match format {
         "json" => generate_json(spec),
         _ => generate_text(spec),
@@ -171,6 +173,7 @@ mod tests {
             exhaustive_matching: None,
             purity: None,
             boundaries: None,
+            contracts: None,
         }
     }
 
@@ -324,6 +327,7 @@ mod tests {
             exhaustive_matching: None,
             purity: None,
             boundaries: None,
+            contracts: None,
         };
         let report = generate_report(&spec, "text");
         assert!(report.contains("v1.0"));

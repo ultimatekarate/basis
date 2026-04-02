@@ -485,6 +485,7 @@ mod tests {
             }),
             purity: None,
             boundaries: None,
+            contracts: None,
         };
 
         let (_, _, warnings) = build_indices_for_lang(&spec, "python");
@@ -520,6 +521,7 @@ mod tests {
             }),
             purity: None,
             boundaries: None,
+            contracts: None,
         };
 
         let (_, _, warnings) = build_indices_for_lang(&spec, "python");

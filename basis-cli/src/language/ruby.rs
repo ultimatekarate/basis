@@ -1,4 +1,4 @@
-use super::{Import, LangDef, MatchHit, SignatureHit, TestFilePatterns};
+use super::{FunctionContract, Import, LangDef, MatchHit, SignatureHit, TestFilePatterns};
 use std::collections::{HashMap, HashSet};
 
 pub static RUBY: LangDef = LangDef {
@@ -8,6 +8,7 @@ pub static RUBY: LangDef = LangDef {
     extract_imports,
     scan_signatures,
     scan_matches,
+    scan_contracts,
     test_file: TestFilePatterns {
         path_contains: &["test/", "spec/"],
         filename_prefixes: &["test_"],
@@ -331,6 +332,10 @@ fn snake_to_pascal(s: &str) -> String {
             }
         })
         .collect()
+}
+
+fn scan_contracts(_content: &str) -> Vec<FunctionContract> {
+    Vec::new()
 }
 
 fn ruby_preamble(_has_newtypes: bool, _has_unions: bool) -> String {

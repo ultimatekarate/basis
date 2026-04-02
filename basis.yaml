@@ -218,3 +218,19 @@ boundaries:
       to: network-io
       action: deny
       reason: "only spec-loader may fetch remote specs"
+
+# ── Contracts Axis ───────────────────────────────────────────────────
+# Rust's type system handles null-safety, so we disable contracts
+# globally and enable them only where semantic preconditions matter:
+# spec-loader validates filesystem paths, laboratory validates inputs.
+
+contracts:
+  enabled: true
+  preconditions:
+    scope: none
+    must_reference: parameters
+  per_layer:
+    spec-loader:
+      preconditions:
+        scope: public
+        must_reference: parameters

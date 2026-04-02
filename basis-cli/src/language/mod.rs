@@ -32,6 +32,17 @@ pub struct MatchHit {
     pub missing_variants: Vec<String>,
 }
 
+/// Information about a function and its guard coverage, for contracts checking.
+pub struct FunctionContract {
+    pub name: String,
+    pub line: usize,
+    pub is_public: bool,
+    pub is_constructor: bool,
+    pub params: Vec<String>,
+    /// Parameter names that appear in guard clauses near function entry.
+    pub guarded_params: Vec<String>,
+}
+
 /// How to detect test files for a language.
 pub struct TestFilePatterns {
     pub path_contains: &'static [&'static str],
@@ -47,6 +58,9 @@ pub type SignatureScanner = fn(
     name_hints: &HashMap<String, Vec<String>>,
     out: &mut Vec<SignatureHit>,
 );
+
+/// Scanner function: finds functions and their guard coverage for contracts checking.
+pub type ContractScanner = fn(content: &str) -> Vec<FunctionContract>;
 
 /// Scanner function: finds non-exhaustive match/switch statements.
 pub type MatchScanner = fn(
@@ -67,6 +81,7 @@ pub struct LangDef {
     pub extract_imports: fn(&str) -> Vec<Import>,
     pub scan_signatures: SignatureScanner,
     pub scan_matches: MatchScanner,
+    pub scan_contracts: ContractScanner,
 
     // Data tables
     pub test_file: TestFilePatterns,

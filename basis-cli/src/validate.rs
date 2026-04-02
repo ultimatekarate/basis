@@ -17,6 +17,7 @@ pub fn validate(spec: &BasisSpec) -> Vec<ValidationError> {
     validate_purity(spec, &mut errors);
     validate_newtypes(spec, &mut errors);
     validate_unions(spec, &mut errors);
+    validate_contracts(spec, &mut errors);
 
     errors
 }
@@ -35,6 +36,8 @@ pub fn validate(spec: &BasisSpec) -> Vec<ValidationError> {
 /// - purity: child replaces parent if child defines it; otherwise inherited
 /// - boundaries: child replaces parent if child defines it; otherwise inherited
 pub fn merge_specs(parent: &BasisSpec, child: &BasisSpec) -> BasisSpec {
+    assert!(!parent.governance.version.is_empty(), "parent spec must have a governance version");
+    assert!(!child.governance.version.is_empty(), "child spec must have a governance version");
     // Layers: start with parent, overlay child
     let mut layers = parent.layers.clone();
     for (name, layer) in &child.layers {
@@ -61,6 +64,13 @@ pub fn merge_specs(parent: &BasisSpec, child: &BasisSpec) -> BasisSpec {
         parent.boundaries.clone()
     };
 
+    // Contracts: child replaces parent if present
+    let contracts = if child.contracts.is_some() {
+        child.contracts.clone()
+    } else {
+        parent.contracts.clone()
+    };
+
     BasisSpec {
         governance: child.governance.clone(),
         extends: None, // resolved
@@ -69,6 +79,7 @@ pub fn merge_specs(parent: &BasisSpec, child: &BasisSpec) -> BasisSpec {
         exhaustive_matching,
         purity,
         boundaries,
+        contracts,
     }
 }
 
@@ -142,6 +153,37 @@ fn merge_exhaustive(
             unions.sort_by(|a, b| a.name.cmp(&b.name));
 
             Some(ExhaustiveConfig { enabled, unions })
+        }
+    }
+}
+
+fn validate_contracts(spec: &BasisSpec, errors: &mut Vec<ValidationError>) {
+    let Some(contracts) = &spec.contracts else {
+        return;
+    };
+
+    let valid_scopes = ["public", "all", "none", "constructors"];
+    if !valid_scopes.contains(&contracts.preconditions.scope.as_str()) {
+        errors.push(ValidationError(format!(
+            "contracts.preconditions.scope '{}' is invalid (expected: public, all, none, constructors)",
+            contracts.preconditions.scope
+        )));
+    }
+
+    let valid_refs = ["parameters", "none"];
+    if !valid_refs.contains(&contracts.preconditions.must_reference.as_str()) {
+        errors.push(ValidationError(format!(
+            "contracts.preconditions.must_reference '{}' is invalid (expected: parameters, none)",
+            contracts.preconditions.must_reference
+        )));
+    }
+
+    let layer_names: HashSet<&str> = spec.layers.keys().map(|s| s.as_str()).collect();
+    for layer_name in contracts.per_layer.keys() {
+        if !layer_names.contains(layer_name.as_str()) {
+            errors.push(ValidationError(format!(
+                "contracts.per_layer references unknown layer '{layer_name}'"
+            )));
         }
     }
 }

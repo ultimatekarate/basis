@@ -37,6 +37,7 @@ fn make_spec_with_newtypes() -> BasisSpec {
         exhaustive_matching: None,
         purity: None,
         boundaries: None,
+        contracts: None,
     }
 }
 
@@ -62,6 +63,7 @@ fn make_spec_with_unions() -> BasisSpec {
         }),
         purity: None,
         boundaries: None,
+        contracts: None,
     }
 }
 
@@ -104,6 +106,7 @@ fn make_spec_with_purity() -> BasisSpec {
             per_layer: std::collections::HashMap::new(),
         }),
         boundaries: None,
+        contracts: None,
     }
 }
 
@@ -609,6 +612,7 @@ fn make_polyglot_spec() -> BasisSpec {
         }),
         purity: None,
         boundaries: None,
+        contracts: None,
     }
 }
 

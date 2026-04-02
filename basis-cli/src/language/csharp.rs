@@ -1,4 +1,4 @@
-use super::{Import, LangDef, MatchHit, SignatureHit, TestFilePatterns};
+use super::{FunctionContract, Import, LangDef, MatchHit, SignatureHit, TestFilePatterns};
 use std::collections::{HashMap, HashSet};
 
 pub static CSHARP: LangDef = LangDef {
@@ -8,6 +8,7 @@ pub static CSHARP: LangDef = LangDef {
     extract_imports,
     scan_signatures,
     scan_matches,
+    scan_contracts,
     test_file: TestFilePatterns {
         path_contains: &["Tests/", "Test/", "tests/"],
         filename_prefixes: &[],
@@ -321,6 +322,10 @@ fn scan_matches(
             }
         }
     }
+}
+
+fn scan_contracts(_content: &str) -> Vec<FunctionContract> {
+    Vec::new()
 }
 
 fn csharp_preamble(_has_newtypes: bool, _has_unions: bool) -> String {

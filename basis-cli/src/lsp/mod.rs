@@ -411,7 +411,7 @@ fn publish_all_diagnostics(
     published
 }
 
-/// Run all four checks (replicates the logic from main.rs run_check).
+/// Run all five checks (replicates the logic from main.rs run_check).
 fn run_check(
     spec: &crate::spec::BasisSpec,
     root: &Path,
@@ -440,6 +440,12 @@ fn run_check(
 
     axes_checked.push("purity".to_string());
     let hits = check::purity::check_purity(spec, root, registry);
+    for v in &hits {
+        violations.push(check::output::UnifiedViolation::from(v));
+    }
+
+    axes_checked.push("contracts".to_string());
+    let hits = check::contracts::check_contracts(spec, root, registry);
     for v in &hits {
         violations.push(check::output::UnifiedViolation::from(v));
     }
