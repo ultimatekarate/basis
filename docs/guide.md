@@ -24,6 +24,43 @@ governance:
 
 That's a valid spec. It doesn't enforce anything yet. You turn on what you need. The `check_tests` field controls whether test files are subject to governance checks. The default (`false`) means governance applies to production code only. Set it to `true` if you want test code held to the same architectural constraints.
 
+### Spec Inheritance
+
+A spec can inherit from a parent using `extends`. The child spec merges on top of the parent — child values override, layers and types accumulate.
+
+**Local inheritance** — parent is a file path, resolved relative to the child spec:
+
+```yaml
+governance:
+  version: "1.0"
+extends: "../shared/base-spec.yaml"
+
+layers:
+  # Local layers merge with inherited ones
+```
+
+**Remote inheritance** — parent is an HTTP/HTTPS URL:
+
+```yaml
+governance:
+  version: "1.0"
+extends: https://internal.company.com/platform/basis-base.yaml
+
+layers:
+  # Local layers merge with inherited ones
+```
+
+Remote inheritance lets a team maintain one base spec with shared newtypes, unions, and purity rules. Every repo extends it. When the base changes, all repos pick up the update on their next `basis check`.
+
+**Merge rules:**
+- **Layers**: union by name; child overrides parent on conflict
+- **Newtypes**: merged by name; child wins on conflict
+- **Unions**: merged by name; child wins on conflict
+- **Purity**: child replaces parent if present; otherwise inherited
+- **Boundaries**: child replaces parent if present; otherwise inherited
+
+Chains are supported: grandparent → parent → child. Maximum depth is 10. Circular extends are detected and rejected. Remote specs can extend other remote URLs but cannot use relative file paths.
+
 ### Layers
 
 Layers are the structural backbone. Each layer has a name, a role (documentation), a list of package paths, and a list of dependencies.
@@ -829,17 +866,39 @@ governance:
 
 ## Why It Works: A Case Study
 
-During development of Basis itself, we implemented spec composition — the `extends:` feature that lets a child spec inherit from a parent. The feature required code in three governed layers:
+During development of Basis itself, we implemented spec composition — the `extends:` feature that lets a child spec inherit from a parent, including remote URLs. The feature required code in three governed layers:
 
 - **dictionary** (spec.rs, strict purity) — the `extends: Option<String>` field on `BasisSpec`
 - **laboratory** (validate.rs, strict purity) — `merge_specs()`, a pure function that takes two specs and returns one
-- **spec-loader** (loader.rs, IO allowed) — `load_spec_with_chain()`, which reads parent files and detects circular extends chains
+- **spec-loader** (loader.rs, IO allowed) — `load_spec_with_chain()`, which reads parent files, fetches remote URLs, and detects circular extends chains
+
+Remote spec fetching required a network dependency (`ureq`). This created a real boundary constraint: only `spec-loader` should perform network IO. Basis uses explicit boundary deny rules to enforce this:
+
+```yaml
+boundaries:
+  enabled: true
+  rules:
+    - from: dictionary
+      to: network-io
+      action: deny
+      reason: "data types must not perform network IO"
+    - from: laboratory
+      to: network-io
+      action: deny
+      reason: "pure logic must not perform network IO"
+    - from: basis-runner
+      to: network-io
+      action: deny
+      reason: "only spec-loader may fetch remote specs"
+```
+
+These deny rules override what `depends_on` transitivity would otherwise allow. The `all-external` wildcard layer grants broad access, but the deny rules surgically prevent network IO from leaking outside `spec-loader`.
 
 The implementation compiled, passed all tests, and `basis check` reported zero violations on the first run.
 
 Basis didn't catch a single mistake.
 
-This sounds like a failure. It isn't. Here's what actually happened: after reading `basis.yaml` — four layers, dependency arrows, purity rules — it was immediately obvious where every function belonged. The merge logic is pure data transformation, so it goes in laboratory. File reading is IO, so it goes in the loader. The data type is inert, so it goes in dictionary. There was no ambiguity, no judgment call, no "it could go either way."
+This sounds like a failure. It isn't. Here's what actually happened: after reading `basis.yaml` — four layers, dependency arrows, purity rules, boundary constraints — it was immediately obvious where every function belonged. The merge logic is pure data transformation, so it goes in laboratory. File reading and network fetching are IO, so they go in the loader. The data type is inert, so it goes in dictionary. The boundary rules made the constraint explicit: network IO is quarantined. There was no ambiguity, no judgment call, no "it could go either way."
 
 The spec didn't need to catch violations because it made the architecture so legible that violations didn't occur.
 

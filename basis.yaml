@@ -40,6 +40,11 @@ layers:
     role: "Rust language-internal imports (crate-relative, std library)"
     packages: [crate, super, self, std, core, alloc]
 
+  network-io:
+    external: true
+    role: "HTTP client for remote spec fetching"
+    packages: [ureq]
+
   all-external:
     external: true
     role: "Unrestricted external access"
@@ -84,6 +89,7 @@ layers:
       io: allowed
     depends_on:
       - dictionary
+      - network-io
       - all-external
 
   basis-runner:
@@ -159,3 +165,16 @@ purity:
 
 boundaries:
   enabled: true
+  rules:
+    - from: dictionary
+      to: network-io
+      action: deny
+      reason: "data types must not perform network IO"
+    - from: laboratory
+      to: network-io
+      action: deny
+      reason: "pure logic must not perform network IO"
+    - from: basis-runner
+      to: network-io
+      action: deny
+      reason: "only spec-loader may fetch remote specs"

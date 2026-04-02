@@ -9,6 +9,8 @@ pub enum SpecError {
     Yaml(#[from] serde_yaml::Error),
     #[error("Extends error: {0}")]
     Extends(String),
+    #[error("Failed to fetch remote spec: {0}")]
+    Network(String),
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
