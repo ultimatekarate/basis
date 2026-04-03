@@ -1,4 +1,4 @@
-use super::{FunctionContract, Import, LangDef, MatchHit, SignatureHit, TestFilePatterns};
+use super::{Import, LangDef, MatchHit, SignatureHit, TestFilePatterns};
 use std::collections::{HashMap, HashSet};
 
 pub static PYTHON: LangDef = LangDef {
@@ -8,7 +8,6 @@ pub static PYTHON: LangDef = LangDef {
     extract_imports,
     scan_signatures,
     scan_matches,
-    scan_contracts,
     test_file: TestFilePatterns {
         path_contains: &["tests/", "__tests__/"],
         filename_prefixes: &["test_"],
@@ -302,141 +301,6 @@ fn scan_matches(
         }
     }
 }
-
-fn scan_contracts(content: &str) -> Vec<FunctionContract> {
-    let lines: Vec<&str> = content.lines().collect();
-    let mut results = Vec::new();
-    let mut i = 0;
-
-    while i < lines.len() {
-        let trimmed = lines[i].trim();
-
-        if !trimmed.starts_with("def ") && !trimmed.starts_with("async def ") {
-            i += 1;
-            continue;
-        }
-
-        let decl_line = i;
-        let is_public = !trimmed.contains("def _");
-        let is_constructor = trimmed.contains("def __init__");
-
-        // Extract function name
-        let fn_name = {
-            let after_keyword = if trimmed.starts_with("async def ") {
-                &trimmed[10..]
-            } else {
-                &trimmed[4..]
-            };
-            after_keyword
-                .split('(')
-                .next()
-                .unwrap_or("")
-                .trim()
-                .to_string()
-        };
-
-        let Some((params_text, end_idx)) = super::collect_params_text(&lines, i) else {
-            i += 1;
-            continue;
-        };
-        i = end_idx + 1;
-
-        // Extract parameter names (skip self, cls, *args, **kwargs)
-        let mut params = Vec::new();
-        for param in params_text.split(',') {
-            let param = param.trim();
-            if param.is_empty()
-                || param == "self"
-                || param == "cls"
-                || param.starts_with("*")
-            {
-                continue;
-            }
-            let name = param.split(':').next().unwrap_or("").trim();
-            if !name.is_empty() {
-                params.push(name.to_string());
-            }
-        }
-
-        if params.is_empty() {
-            continue;
-        }
-
-        // Scan the first ~10 non-empty body lines for guard patterns
-        let body_indent = indentation_level(lines[decl_line]) + 4; // Python indent
-        let mut guarded_params = Vec::new();
-        let mut body_lines_seen = 0;
-
-        for j in (end_idx + 1)..lines.len().min(end_idx + 20) {
-            let line = lines[j];
-            let line_trimmed = line.trim();
-
-            // Skip empty lines, comments, docstrings
-            if line_trimmed.is_empty()
-                || line_trimmed.starts_with('#')
-                || line_trimmed.starts_with("\"\"\"")
-                || line_trimmed.starts_with("'''")
-            {
-                continue;
-            }
-
-            // Stop if we've left the function body
-            if !line_trimmed.is_empty() && indentation_level(line) < body_indent {
-                break;
-            }
-
-            body_lines_seen += 1;
-            if body_lines_seen > 10 {
-                break;
-            }
-
-            // Guard patterns:
-            // assert <expr>
-            // if <cond>: raise
-            // if not <cond>: raise
-            // if <cond>:\n    raise  (next line)
-            // if <cond>: return
-            let is_guard = line_trimmed.starts_with("assert ")
-                || line_trimmed.starts_with("assert(")
-                || (line_trimmed.starts_with("if ")
-                    && (line_trimmed.contains("raise ") || line_trimmed.contains("return")))
-                || (line_trimmed.starts_with("if not ")
-                    && (line_trimmed.contains("raise ") || line_trimmed.contains("return")));
-
-            // Also catch multi-line if/raise: "if cond:" followed by "raise"
-            let is_guard = is_guard
-                || (line_trimmed.starts_with("if ") && line_trimmed.ends_with(':') && {
-                    let next = lines
-                        .get(j + 1)
-                        .map(|l| l.trim())
-                        .unwrap_or("");
-                    next.starts_with("raise ") || next.starts_with("return")
-                });
-
-            if is_guard {
-                for param in &params {
-                    if line_trimmed.contains(param.as_str())
-                        && !guarded_params.contains(param)
-                    {
-                        guarded_params.push(param.clone());
-                    }
-                }
-            }
-        }
-
-        results.push(FunctionContract {
-            name: fn_name,
-            line: decl_line + 1,
-            is_public,
-            is_constructor,
-            params,
-            guarded_params,
-        });
-    }
-
-    results
-}
-
 fn indentation_level(line: &str) -> usize {
     line.len() - line.trim_start().len()
 }

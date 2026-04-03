@@ -150,7 +150,6 @@ mod tests {
             }),
             purity: None,
             boundaries: None,
-            contracts: None,
         }
     }
 

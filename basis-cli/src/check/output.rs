@@ -57,11 +57,6 @@ pub enum ViolationDetails {
         trigger: String,
         layer: String,
     },
-    Contracts {
-        function_name: String,
-        missing_param: String,
-        layer: String,
-    },
 }
 
 // ── Constructors ───────────────────────────────────────────────────
@@ -122,11 +117,6 @@ pub fn identity_key(v: &UnifiedViolation) -> String {
         ViolationDetails::Purity {
             category, trigger, ..
         } => format!("B004:{}:{}:{}", v.file, category, trigger),
-        ViolationDetails::Contracts {
-            function_name,
-            missing_param,
-            ..
-        } => format!("B005:{}:{}:{}", v.file, function_name, missing_param),
     }
 }
 
@@ -228,30 +218,6 @@ impl From<&super::purity::Violation> for UnifiedViolation {
             message: format!(
                 "forbidden import '{}' in strict-purity layer '{}'",
                 v.forbidden, v.layer
-            ),
-            identity: String::new(),
-            details,
-        };
-        uv.identity = identity_key(&uv);
-        uv
-    }
-}
-
-impl From<&super::contracts::Violation> for UnifiedViolation {
-    fn from(v: &super::contracts::Violation) -> Self {
-        let details = ViolationDetails::Contracts {
-            function_name: v.function_name.clone(),
-            missing_param: v.missing_param.clone(),
-            layer: v.layer.clone(),
-        };
-        let mut uv = UnifiedViolation {
-            code: "B005".to_string(),
-            axis: "contracts".to_string(),
-            file: v.file.clone(),
-            line: v.line,
-            message: format!(
-                "function '{}' has no precondition referencing parameter '{}'",
-                v.function_name, v.missing_param
             ),
             identity: String::new(),
             details,

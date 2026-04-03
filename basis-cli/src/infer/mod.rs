@@ -245,7 +245,6 @@ pub fn assemble_spec(
         exhaustive_matching: exhaustive,
         purity: purity_config,
         boundaries,
-        contracts: None,
     }
 }
 

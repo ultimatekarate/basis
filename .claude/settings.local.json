@@ -108,7 +108,9 @@
       "Bash(grep -r \"WorkDoneProgress\\\\|ProgressParams\\\\|WorkspaceFolder\\\\|InitializeParams\" /c/Users/joevo/.cargo/registry/src/index.crates.io-*/lsp-types-0.97.*/src/*.rs)",
       "Bash(grep -n \"pub fn initialize\" ~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lsp-server-0.7.*/src/*.rs)",
       "Bash(grep -v \"//.*BasisSpec\")",
-      "Bash(ls -la \"C:\\\\Users\\\\joevo\\\\git-repo\\\\basis-examples\\\\weather-monitor\\\\src 2>/dev/null || ls -la /c/Users/joevo/git-repo/basis-examples/weather-monitor/src/ 2>/dev/null || find C:Usersjoevogit-repobasis-examplesweather-monitorsrc\" -type f)"
+      "Bash(ls -la \"C:\\\\Users\\\\joevo\\\\git-repo\\\\basis-examples\\\\weather-monitor\\\\src 2>/dev/null || ls -la /c/Users/joevo/git-repo/basis-examples/weather-monitor/src/ 2>/dev/null || find C:Usersjoevogit-repobasis-examplesweather-monitorsrc\" -type f)",
+      "Bash(do)",
+      "Bash(echo \"=== $f ===\")"
     ]
   }
 }

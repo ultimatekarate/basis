@@ -1,4 +1,4 @@
-use super::{FunctionContract, Import, LangDef, MatchHit, SignatureHit, TestFilePatterns};
+use super::{Import, LangDef, MatchHit, SignatureHit, TestFilePatterns};
 use std::collections::{HashMap, HashSet};
 
 pub static JAVASCRIPT: LangDef = LangDef {
@@ -8,7 +8,6 @@ pub static JAVASCRIPT: LangDef = LangDef {
     extract_imports,
     scan_signatures,
     scan_matches,
-    scan_contracts,
     test_file: TestFilePatterns {
         path_contains: &["__tests__/"],
         filename_prefixes: &[],
@@ -88,106 +87,6 @@ pub fn extract_imports(content: &str) -> Vec<Import> {
         }
     }
     imports
-}
-
-fn scan_contracts(content: &str) -> Vec<FunctionContract> {
-    let lines: Vec<&str> = content.lines().collect();
-    let mut results = Vec::new();
-    let mut i = 0;
-
-    while i < lines.len() {
-        let trimmed = lines[i].trim();
-
-        // Detect function declarations
-        let is_export = trimmed.starts_with("export ");
-        let has_function = trimmed.contains("function ");
-
-        if !has_function
-            && !trimmed.starts_with("async ")
-            && !(trimmed.contains('(')
-                && (trimmed.starts_with("export ") || trimmed.starts_with("const ") || trimmed.starts_with("let ")))
-        {
-            i += 1;
-            continue;
-        }
-
-        let decl_line = i;
-        let fn_name = extract_js_function_name(trimmed);
-        if fn_name.is_empty() {
-            i += 1;
-            continue;
-        }
-
-        let is_constructor = fn_name == "constructor";
-
-        let Some((params_text, end_idx)) = super::collect_params_text(&lines, i) else {
-            i += 1;
-            continue;
-        };
-        i = end_idx + 1;
-
-        let mut params = Vec::new();
-        for param in params_text.split(',') {
-            let param = param.trim();
-            if param.is_empty() {
-                continue;
-            }
-            let name = param.split(':').next().unwrap_or("").trim();
-            // Strip default values
-            let name = name.split('=').next().unwrap_or("").trim();
-            if !name.is_empty() && name != "this" {
-                params.push(name.to_string());
-            }
-        }
-
-        if params.is_empty() {
-            continue;
-        }
-
-        // Scan first ~10 body lines for guards
-        let mut guarded_params = Vec::new();
-        let mut body_lines_seen = 0;
-
-        for j in (end_idx + 1)..lines.len().min(end_idx + 20) {
-            let line_trimmed = lines[j].trim();
-            if line_trimmed.is_empty() || line_trimmed.starts_with("//") {
-                continue;
-            }
-            if line_trimmed == "}" {
-                break;
-            }
-
-            body_lines_seen += 1;
-            if body_lines_seen > 10 {
-                break;
-            }
-
-            // Guard patterns: if (!x) throw, console.assert, assert(
-            let is_guard = (line_trimmed.starts_with("if ")
-                && (line_trimmed.contains("throw ") || line_trimmed.contains("return")))
-                || line_trimmed.starts_with("console.assert(")
-                || line_trimmed.starts_with("assert(");
-
-            if is_guard {
-                for param in &params {
-                    if line_trimmed.contains(param.as_str()) && !guarded_params.contains(param) {
-                        guarded_params.push(param.clone());
-                    }
-                }
-            }
-        }
-
-        results.push(FunctionContract {
-            name: fn_name,
-            line: decl_line + 1,
-            is_public: is_export,
-            is_constructor,
-            params,
-            guarded_params,
-        });
-    }
-
-    results
 }
 
 fn extract_module_path(line: &str) -> Option<String> {

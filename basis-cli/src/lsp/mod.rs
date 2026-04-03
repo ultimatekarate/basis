@@ -444,12 +444,6 @@ fn run_check(
         violations.push(check::output::UnifiedViolation::from(v));
     }
 
-    axes_checked.push("contracts".to_string());
-    let hits = check::contracts::check_contracts(spec, root, registry);
-    for v in &hits {
-        violations.push(check::output::UnifiedViolation::from(v));
-    }
-
     (violations, axes_checked)
 }
 

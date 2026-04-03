@@ -1,4 +1,4 @@
-use super::{FunctionContract, Import, LangDef, MatchHit, SignatureHit, TestFilePatterns};
+use super::{Import, LangDef, MatchHit, SignatureHit, TestFilePatterns};
 use std::collections::{HashMap, HashSet};
 
 pub static JAVA: LangDef = LangDef {
@@ -8,7 +8,6 @@ pub static JAVA: LangDef = LangDef {
     extract_imports,
     scan_signatures,
     scan_matches,
-    scan_contracts,
     test_file: TestFilePatterns {
         path_contains: &["test/"],
         filename_prefixes: &[],
@@ -287,10 +286,6 @@ fn scan_matches(
             }
         }
     }
-}
-
-fn scan_contracts(_content: &str) -> Vec<FunctionContract> {
-    Vec::new()
 }
 
 fn java_preamble(_has_newtypes: bool, _has_unions: bool) -> String {

@@ -93,7 +93,6 @@ fn build_type_map_groups_by_primitive() {
         exhaustive_matching: None,
         purity: None,
         boundaries: None,
-        contracts: None,
     };
     let map = build_type_map(&spec, &registry);
     assert!(map.contains_key("str"));
@@ -123,7 +122,6 @@ fn build_type_map_disabled() {
         exhaustive_matching: None,
         purity: None,
         boundaries: None,
-        contracts: None,
     };
     assert!(build_type_map(&spec, &registry).is_empty());
 }

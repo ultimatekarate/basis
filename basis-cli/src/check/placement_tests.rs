@@ -237,7 +237,6 @@ fn resolve_layer_longest_prefix_wins() {
             exhaustive_matching: None,
             purity: None,
             boundaries: None,
-            contracts: None,
         };
         spec.layers.insert(
             "broad".into(),
@@ -283,7 +282,6 @@ fn no_deps_means_denied() {
         exhaustive_matching: None,
         purity: None,
         boundaries: None,
-        contracts: None,
     };
     assert!(!is_allowed("a", "b", &spec));
 }
@@ -306,7 +304,6 @@ fn explicit_allow_rule() {
                 reason: None,
             }],
         }),
-        contracts: None,
     };
     assert!(is_allowed("hands", "dictionary", &spec));
 }
@@ -329,7 +326,6 @@ fn explicit_deny_rule() {
                 reason: Some("no".into()),
             }],
         }),
-        contracts: None,
     };
     assert!(!is_allowed("dictionary", "hands", &spec));
 }
@@ -365,7 +361,6 @@ fn depends_on_fallback() {
         exhaustive_matching: None,
         purity: None,
         boundaries: None,
-        contracts: None,
     };
     assert!(is_allowed("b", "a", &spec));
     assert!(!is_allowed("a", "b", &spec));
@@ -412,7 +407,6 @@ fn transitive_deps_computed() {
         exhaustive_matching: None,
         purity: None,
         boundaries: None,
-        contracts: None,
     };
     // c -> b -> a: c can reach a transitively
     assert!(is_allowed("c", "a", &spec));
@@ -439,7 +433,6 @@ fn get_deny_reason_from_rule() {
                 reason: Some("not allowed".into()),
             }],
         }),
-        contracts: None,
     };
     assert_eq!(get_deny_reason(&spec, "a", "b"), "not allowed");
 }
@@ -454,7 +447,6 @@ fn get_deny_reason_default() {
         exhaustive_matching: None,
         purity: None,
         boundaries: None,
-        contracts: None,
     };
     let reason = get_deny_reason(&spec, "x", "y");
     assert!(reason.contains("x"));
@@ -546,7 +538,6 @@ fn build_external_map_only_external_layers() {
         exhaustive_matching: None,
         purity: None,
         boundaries: None,
-        contracts: None,
     };
 
     let ext_map = build_external_map(&spec);
@@ -643,7 +634,6 @@ fn internal_layer_excluded_from_layer_map_when_external() {
         exhaustive_matching: None,
         purity: None,
         boundaries: None,
-        contracts: None,
     };
 
     let layer_map = build_layer_map(&spec);
@@ -687,7 +677,6 @@ fn unmatched_import_not_flagged() {
         exhaustive_matching: None,
         purity: None,
         boundaries: None,
-        contracts: None,
     };
     let external_map = build_external_map(&spec);
 

@@ -10,7 +10,6 @@ fn minimal_spec() -> BasisSpec {
         exhaustive_matching: None,
         purity: None,
         boundaries: None,
-        contracts: None,
     }
 }
 
@@ -36,7 +35,6 @@ fn spec_with_layers(layers: Vec<(&str, Vec<&str>)>) -> BasisSpec {
         exhaustive_matching: None,
         purity: None,
         boundaries: None,
-        contracts: None,
     }
 }
 
@@ -393,7 +391,6 @@ fn spec_with_strict_layer(name: &str) -> BasisSpec {
             per_layer: HashMap::new(),
         }),
         boundaries: None,
-        contracts: None,
     }
 }
 

@@ -1,4 +1,4 @@
-use super::{FunctionContract, Import, LangDef, MatchHit, SignatureHit, TestFilePatterns};
+use super::{Import, LangDef, MatchHit, SignatureHit, TestFilePatterns};
 use std::collections::{HashMap, HashSet};
 
 pub static GO: LangDef = LangDef {
@@ -8,7 +8,6 @@ pub static GO: LangDef = LangDef {
     extract_imports,
     scan_signatures,
     scan_matches,
-    scan_contracts,
     test_file: TestFilePatterns {
         path_contains: &[],
         filename_prefixes: &[],
@@ -312,109 +311,6 @@ fn scan_matches(
             }
         }
     }
-}
-
-fn scan_contracts(content: &str) -> Vec<FunctionContract> {
-    let lines: Vec<&str> = content.lines().collect();
-    let mut results = Vec::new();
-    let mut i = 0;
-
-    while i < lines.len() {
-        let trimmed = lines[i].trim();
-        if !trimmed.starts_with("func ") {
-            i += 1;
-            continue;
-        }
-
-        let decl_line = i;
-        // All Go exported functions start with uppercase
-        let func_part = &trimmed[5..];
-        let is_public = func_part
-            .chars()
-            .find(|c| c.is_alphabetic())
-            .map_or(false, |c| c.is_uppercase());
-
-        // Extract function name (skip receiver)
-        let fn_name = {
-            let name_start = if func_part.starts_with('(') {
-                // Method with receiver: func (r *Type) Name(
-                let receiver_end = func_part.find(')').unwrap_or(0) + 1;
-                &func_part[receiver_end..]
-            } else {
-                func_part
-            };
-            name_start
-                .trim()
-                .split(&['(', '<'][..])
-                .next()
-                .unwrap_or("")
-                .trim()
-                .to_string()
-        };
-
-        let is_constructor = fn_name.starts_with("New");
-
-        // Find params
-        let effective_start = match trimmed.rfind('(') {
-            Some(p) => p,
-            None => { i += 1; continue; }
-        };
-        let _ = effective_start; // We'll use collect_params_text
-
-        let Some((params_text, end_idx)) = super::collect_params_text(&lines, i) else {
-            i += 1;
-            continue;
-        };
-        i = end_idx + 1;
-
-        let mut params = Vec::new();
-        for param in params_text.split(',') {
-            let param = param.trim();
-            if param.is_empty() { continue; }
-            let parts: Vec<&str> = param.split_whitespace().collect();
-            if !parts.is_empty() && !parts[0].starts_with('_') {
-                params.push(parts[0].to_string());
-            }
-        }
-
-        if params.is_empty() { continue; }
-
-        // Scan first ~10 body lines for guards
-        let mut guarded_params = Vec::new();
-        let mut body_lines_seen = 0;
-
-        for j in (end_idx + 1)..lines.len().min(end_idx + 20) {
-            let line_trimmed = lines[j].trim();
-            if line_trimmed.is_empty() || line_trimmed.starts_with("//") { continue; }
-            if line_trimmed == "}" { break; }
-
-            body_lines_seen += 1;
-            if body_lines_seen > 10 { break; }
-
-            // Go guard patterns: if x { return err }, if x == nil { return }
-            let is_guard = line_trimmed.starts_with("if ")
-                && (line_trimmed.contains("return") || line_trimmed.contains("panic("));
-
-            if is_guard {
-                for param in &params {
-                    if line_trimmed.contains(param.as_str()) && !guarded_params.contains(param) {
-                        guarded_params.push(param.clone());
-                    }
-                }
-            }
-        }
-
-        results.push(FunctionContract {
-            name: fn_name,
-            line: decl_line + 1,
-            is_public,
-            is_constructor,
-            params,
-            guarded_params,
-        });
-    }
-
-    results
 }
 
 fn go_preamble(_has_newtypes: bool, _has_unions: bool) -> String {

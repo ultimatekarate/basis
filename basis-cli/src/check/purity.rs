@@ -490,7 +490,6 @@ mod tests {
                 per_layer: HashMap::new(),
             }),
             boundaries: None,
-            contracts: None,
         }
     }
 
@@ -573,7 +572,6 @@ mod tests {
                 per_layer: HashMap::new(),
             }),
             boundaries: None,
-            contracts: None,
         };
         assert!(strict_layers(&spec).is_empty());
     }

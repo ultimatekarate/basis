@@ -29,8 +29,6 @@ pub struct BasisSpec {
     pub purity: Option<PurityConfig>,
     #[serde(default)]
     pub boundaries: Option<BoundaryConfig>,
-    #[serde(default)]
-    pub contracts: Option<ContractConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
@@ -141,66 +139,6 @@ pub struct BoundaryRule {
     pub reason: Option<String>,
 }
 
-
-// ── Contracts Axis ──────────────────────────────────────────────────
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ContractConfig {
-    pub enabled: bool,
-    #[serde(default)]
-    pub preconditions: PreconditionConfig,
-    #[serde(default)]
-    pub invariants: Option<InvariantConfig>,
-    #[serde(default)]
-    pub per_layer: HashMap<String, LayerContractOverride>,
-}
-
-/// Default: scope=public, must_reference=parameters
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct PreconditionConfig {
-    /// Which functions must have preconditions: "public", "all", "none", "constructors"
-    #[serde(default = "default_scope")]
-    pub scope: String,
-    /// What must preconditions reference: "parameters" or "none"
-    #[serde(default = "default_must_reference")]
-    pub must_reference: String,
-}
-
-fn default_scope() -> String {
-    "public".to_string()
-}
-
-fn default_must_reference() -> String {
-    "parameters".to_string()
-}
-
-impl Default for PreconditionConfig {
-    fn default() -> Self {
-        Self {
-            scope: default_scope(),
-            must_reference: default_must_reference(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct InvariantConfig {
-    #[serde(default)]
-    pub types: Vec<InvariantDef>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct InvariantDef {
-    pub name: String,
-    #[serde(default)]
-    pub must_validate: Vec<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct LayerContractOverride {
-    #[serde(default)]
-    pub preconditions: Option<PreconditionConfig>,
-}
 
 pub const KNOWN_LANGUAGES: &[&str] = &[
     "python", "rust", "js", "go", "java", "kotlin", "ruby", "swift", "csharp",
