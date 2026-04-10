@@ -169,6 +169,7 @@ exhaustive_matching:
         - Placement
         - Completeness
         - Purity
+        - Granularity
     - name: BoundaryAction
       variants:
         - Allow
@@ -218,3 +219,13 @@ boundaries:
       to: network-io
       action: deny
       reason: "only spec-loader may fetch remote specs"
+
+# ── Granularity Axis ──────────────────────────────────────────────────
+#
+# Per-file line budget. Tests are intentionally counted: a 2000-line test
+# file inflates an agent's context window the same as a 2000-line production
+# file when read. The budget bounds that cost.
+
+granularity:
+  enabled: true
+  max_lines: 800

@@ -15,6 +15,7 @@ pub fn validate(spec: &BasisSpec) -> Vec<ValidationError> {
     validate_external_layers(spec, &mut errors);
     validate_boundaries(spec, &mut errors);
     validate_purity(spec, &mut errors);
+    validate_granularity(spec, &mut errors);
     validate_newtypes(spec, &mut errors);
     validate_unions(spec, &mut errors);
 
@@ -61,6 +62,13 @@ pub fn merge_specs(parent: &BasisSpec, child: &BasisSpec) -> BasisSpec {
         parent.boundaries.clone()
     };
 
+    // Granularity: child replaces parent if present
+    let granularity = if child.granularity.is_some() {
+        child.granularity.clone()
+    } else {
+        parent.granularity.clone()
+    };
+
     BasisSpec {
         governance: child.governance.clone(),
         extends: None, // resolved
@@ -69,6 +77,7 @@ pub fn merge_specs(parent: &BasisSpec, child: &BasisSpec) -> BasisSpec {
         exhaustive_matching,
         purity,
         boundaries,
+        granularity,
     }
 }
 
@@ -296,6 +305,32 @@ fn validate_boundaries(spec: &BasisSpec, errors: &mut Vec<ValidationError>) {
         }
     }
 
+}
+
+fn validate_granularity(spec: &BasisSpec, errors: &mut Vec<ValidationError>) {
+    let Some(granularity) = &spec.granularity else {
+        return;
+    };
+
+    if granularity.enabled && granularity.max_lines == 0 {
+        errors.push(ValidationError(
+            "granularity.max_lines must be greater than 0".into(),
+        ));
+    }
+
+    let layer_names: HashSet<&str> = spec.layers.keys().map(|s| s.as_str()).collect();
+    for (layer_name, override_def) in &granularity.per_layer {
+        if !layer_names.contains(layer_name.as_str()) {
+            errors.push(ValidationError(format!(
+                "granularity.per_layer references unknown layer '{layer_name}'"
+            )));
+        }
+        if override_def.max_lines == 0 {
+            errors.push(ValidationError(format!(
+                "granularity.per_layer.{layer_name}.max_lines must be greater than 0"
+            )));
+        }
+    }
 }
 
 fn validate_purity(spec: &BasisSpec, errors: &mut Vec<ValidationError>) {

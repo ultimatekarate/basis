@@ -411,7 +411,7 @@ fn publish_all_diagnostics(
     published
 }
 
-/// Run all five checks (replicates the logic from main.rs run_check).
+/// Run all checks (replicates the logic from main.rs run_check).
 fn run_check(
     spec: &crate::spec::BasisSpec,
     root: &Path,
@@ -440,6 +440,12 @@ fn run_check(
 
     axes_checked.push("purity".to_string());
     let hits = check::purity::check_purity(spec, root, registry);
+    for v in &hits {
+        violations.push(check::output::UnifiedViolation::from(v));
+    }
+
+    axes_checked.push("granularity".to_string());
+    let hits = check::granularity::check_granularity(spec, root, registry);
     for v in &hits {
         violations.push(check::output::UnifiedViolation::from(v));
     }
@@ -518,6 +524,7 @@ mod tests {
                 to_layer: "hands".into(),
                 module: "requests".into(),
             },
+            help: String::new(),
         };
         let d = violation_to_diagnostic(&v);
         assert_eq!(d.range.start.line, 4); // 0-indexed
@@ -603,6 +610,7 @@ mod tests {
                 to_layer: "b".into(),
                 module: "x".into(),
             },
+            help: String::new(),
         };
         state.store(spec_path.clone(), vec![v], vec![]);
 

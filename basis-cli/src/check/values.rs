@@ -14,23 +14,39 @@ pub struct Violation {
     pub suggested: Vec<String>,
 }
 
+impl Violation {
+    /// The actionable fix line. Single source of truth shared by the
+    /// Display impl and the JSON `UnifiedViolation::help` field. Two
+    /// shapes: returns are phrased as "return X instead of Y", params
+    /// as "use X instead of Y", because that is how the fix actually
+    /// reads in code. No "help: " prefix — callers add it.
+    pub fn help_text(&self) -> String {
+        let suggested = self.suggested.join(" or ");
+        if self.param_name == "(return)" {
+            format!("return {} instead of {}", suggested, self.raw_type)
+        } else {
+            format!("use {} instead of {}", suggested, self.raw_type)
+        }
+    }
+}
+
 impl std::fmt::Display for Violation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.param_name == "(return)" {
             write!(
                 f,
-                "error[B002]: return type '{}' is a raw primitive where branded newtype expected\n  --> {}:{}\n  = help: return {} instead of {}",
+                "error[B002]: return type '{}' is a raw primitive where branded newtype expected\n  --> {}:{}\n  = help: {}",
                 self.raw_type,
                 self.file, self.line,
-                self.suggested.join(" or "), self.raw_type
+                self.help_text()
             )
         } else {
             write!(
                 f,
-                "error[B002]: parameter '{}' uses raw '{}' instead of branded newtype\n  --> {}:{}\n  = help: use {} instead of {}",
+                "error[B002]: parameter '{}' uses raw '{}' instead of branded newtype\n  --> {}:{}\n  = help: {}",
                 self.param_name, self.raw_type,
                 self.file, self.line,
-                self.suggested.join(" or "), self.raw_type
+                self.help_text()
             )
         }
     }
@@ -253,3 +269,7 @@ pub fn check_values(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -> V
 #[cfg(test)]
 #[path = "values_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "values_return_tests.rs"]
+mod return_tests;

@@ -23,6 +23,14 @@ pub struct Summary {
 }
 
 /// A single violation in unified format, usable across all axes.
+///
+/// `help` carries the actionable fix line — the same prescription a
+/// human reading `basis check` text output sees. Surfaced in JSON so
+/// downstream consumers (notably the `feedback` hook that injects
+/// violations into the agent's `additionalContext`) can render the
+/// fix alongside the violation message without re-deriving it.
+/// Defaulted on deserialize for backward compatibility with baselines
+/// produced before the field existed.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UnifiedViolation {
     pub code: String,
@@ -32,6 +40,8 @@ pub struct UnifiedViolation {
     pub message: String,
     pub identity: String,
     pub details: ViolationDetails,
+    #[serde(default)]
+    pub help: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,6 +65,11 @@ pub enum ViolationDetails {
     Purity {
         category: String,
         trigger: String,
+        layer: String,
+    },
+    Granularity {
+        actual_lines: usize,
+        max_lines: usize,
         layer: String,
     },
 }
@@ -117,6 +132,11 @@ pub fn identity_key(v: &UnifiedViolation) -> String {
         ViolationDetails::Purity {
             category, trigger, ..
         } => format!("B004:{}:{}:{}", v.file, category, trigger),
+        ViolationDetails::Granularity { layer, .. } => {
+            // Identity excludes actual_lines so trivial edits don't churn the
+            // baseline — the violation is "this file exists and is over budget".
+            format!("B005:{}:{}", v.file, layer)
+        }
     }
 }
 
@@ -140,6 +160,7 @@ impl From<&super::placement::Violation> for UnifiedViolation {
             ),
             identity: String::new(),
             details,
+            help: v.help_text(),
         };
         uv.identity = identity_key(&uv);
         uv
@@ -173,6 +194,7 @@ impl From<&super::values::Violation> for UnifiedViolation {
             message,
             identity: String::new(),
             details,
+            help: v.help_text(),
         };
         uv.identity = identity_key(&uv);
         uv
@@ -197,6 +219,7 @@ impl From<&super::completeness::Violation> for UnifiedViolation {
             ),
             identity: String::new(),
             details,
+            help: v.help_text(),
         };
         uv.identity = identity_key(&uv);
         uv
@@ -221,6 +244,32 @@ impl From<&super::purity::Violation> for UnifiedViolation {
             ),
             identity: String::new(),
             details,
+            help: v.help_text(),
+        };
+        uv.identity = identity_key(&uv);
+        uv
+    }
+}
+
+impl From<&super::granularity::Violation> for UnifiedViolation {
+    fn from(v: &super::granularity::Violation) -> Self {
+        let details = ViolationDetails::Granularity {
+            actual_lines: v.actual_lines,
+            max_lines: v.max_lines,
+            layer: v.layer.clone(),
+        };
+        let mut uv = UnifiedViolation {
+            code: "B005".to_string(),
+            axis: "granularity".to_string(),
+            file: v.file.clone(),
+            line: v.line,
+            message: format!(
+                "file is {} lines, exceeds {}-line budget for layer '{}'",
+                v.actual_lines, v.max_lines, v.layer
+            ),
+            identity: String::new(),
+            details,
+            help: v.help_text(),
         };
         uv.identity = identity_key(&uv);
         uv

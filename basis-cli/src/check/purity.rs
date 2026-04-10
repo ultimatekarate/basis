@@ -13,14 +13,26 @@ pub struct Violation {
     pub category: String,
 }
 
+impl Violation {
+    /// The actionable fix line. Single source of truth shared by the
+    /// Display impl and the JSON `UnifiedViolation::help` field. The
+    /// text is fully static — purity violations always resolve the
+    /// same two ways: relocate the code or drop the import. No
+    /// "help: " prefix — callers add it.
+    pub fn help_text(&self) -> String {
+        "move this code to a non-strict layer, or remove the import".to_string()
+    }
+}
+
 impl std::fmt::Display for Violation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "error[B004]: forbidden import '{}' in strict-purity layer '{}'\n  --> {}:{}\n  = note: '{}' is in the '{}' category, which is forbidden in strict layers\n  = help: move this code to a non-strict layer, or remove the import",
+            "error[B004]: forbidden import '{}' in strict-purity layer '{}'\n  --> {}:{}\n  = note: '{}' is in the '{}' category, which is forbidden in strict layers\n  = help: {}",
             self.forbidden, self.layer,
             self.file, self.line,
-            self.forbidden, self.category
+            self.forbidden, self.category,
+            self.help_text()
         )
     }
 }
@@ -490,6 +502,7 @@ mod tests {
                 per_layer: HashMap::new(),
             }),
             boundaries: None,
+            granularity: None,
         }
     }
 
@@ -572,6 +585,7 @@ mod tests {
                 per_layer: HashMap::new(),
             }),
             boundaries: None,
+            granularity: None,
         };
         assert!(strict_layers(&spec).is_empty());
     }

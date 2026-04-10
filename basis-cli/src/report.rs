@@ -171,6 +171,7 @@ mod tests {
             exhaustive_matching: None,
             purity: None,
             boundaries: None,
+            granularity: None,
         }
     }
 
@@ -324,6 +325,7 @@ mod tests {
             exhaustive_matching: None,
             purity: None,
             boundaries: None,
+            granularity: None,
         };
         let report = generate_report(&spec, "text");
         assert!(report.contains("v1.0"));

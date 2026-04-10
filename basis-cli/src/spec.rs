@@ -29,6 +29,8 @@ pub struct BasisSpec {
     pub purity: Option<PurityConfig>,
     #[serde(default)]
     pub boundaries: Option<BoundaryConfig>,
+    #[serde(default)]
+    pub granularity: Option<GranularityConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
@@ -137,6 +139,24 @@ pub struct BoundaryRule {
     pub action: String,
     #[serde(default)]
     pub reason: Option<String>,
+}
+
+/// Per-file line budget enforcement. Files larger than the budget violate B005.
+/// Tests are intentionally counted: a 2000-line test file costs the same context
+/// as a 2000-line production file when an agent reads it.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct GranularityConfig {
+    pub enabled: bool,
+    /// Default per-file line budget across all layers without an override.
+    pub max_lines: usize,
+    /// Per-layer overrides — replaces the global default for the named layer.
+    #[serde(default)]
+    pub per_layer: HashMap<String, LayerGranularityOverride>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct LayerGranularityOverride {
+    pub max_lines: usize,
 }
 
 

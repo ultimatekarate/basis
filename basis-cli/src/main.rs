@@ -35,7 +35,7 @@ enum Command {
         /// Path to the codebase root
         #[arg(default_value = ".")]
         path: PathBuf,
-        /// Which axes to check (default: all). Options: placement, values, completeness, purity
+        /// Which axes to check (default: all). Options: placement, values, completeness, purity, granularity
         #[arg(long, value_delimiter = ',')]
         axes: Option<Vec<String>>,
         /// Output format: text (default) or json
@@ -178,6 +178,14 @@ fn run_check(
         }
     }
 
+    if run("granularity") {
+        axes_checked.push("granularity".to_string());
+        let hits = check::granularity::check_granularity(spec, path, &registry);
+        for v in &hits {
+            violations.push(check::output::UnifiedViolation::from(v));
+        }
+    }
+
     (violations, axes_checked)
 }
 
@@ -315,6 +323,15 @@ fn main() {
                 if run("purity") {
                     let violations =
                         check::purity::check_purity(&spec, &path, &registry);
+                    for v in &violations {
+                        eprintln!("{v}\n");
+                    }
+                    total_violations += violations.len();
+                }
+
+                if run("granularity") {
+                    let violations =
+                        check::granularity::check_granularity(&spec, &path, &registry);
                     for v in &violations {
                         eprintln!("{v}\n");
                     }

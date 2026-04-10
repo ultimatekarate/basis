@@ -150,6 +150,7 @@ mod tests {
             }),
             purity: None,
             boundaries: None,
+            granularity: None,
         }
     }
 

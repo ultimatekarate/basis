@@ -14,15 +14,31 @@ pub struct Violation {
     pub reason: String,
 }
 
+impl Violation {
+    /// The actionable fix line. Single source of truth — both the
+    /// human-readable Display impl and `UnifiedViolation::help` read
+    /// from this method, so the agent reading the JSON-derived help
+    /// sees exactly the same prescription as a human reading
+    /// `basis check` text output. The text intentionally omits the
+    /// "help: " prefix; callers add it (Display does) or render it
+    /// inline (the JSON `help` field is the bare prescription).
+    pub fn help_text(&self) -> String {
+        format!(
+            "move this code into the '{}' layer, or add '{}' to depends_on in basis.yaml",
+            self.to_layer, self.to_layer
+        )
+    }
+}
+
 impl std::fmt::Display for Violation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "error[B001]: import '{}' violates boundary ({} -> {})\n  --> {}:{}\n  = note: {}\n  = help: move this code into the '{}' layer, or add '{}' to depends_on in basis.yaml",
+            "error[B001]: import '{}' violates boundary ({} -> {})\n  --> {}:{}\n  = note: {}\n  = help: {}",
             self.import, self.from_layer, self.to_layer,
             self.file, self.line,
             self.reason,
-            self.to_layer, self.to_layer
+            self.help_text()
         )
     }
 }

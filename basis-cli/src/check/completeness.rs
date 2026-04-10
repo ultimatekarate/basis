@@ -23,15 +23,27 @@ pub struct CompletenessResult {
     pub warnings: Vec<String>,
 }
 
+impl Violation {
+    /// The actionable fix line. Single source of truth shared by the
+    /// Display impl and the JSON `UnifiedViolation::help` field. No
+    /// "help: " prefix — callers add it.
+    pub fn help_text(&self) -> String {
+        format!(
+            "add case arms for {} or add a wildcard (_) pattern",
+            self.missing_variants.join(", ")
+        )
+    }
+}
+
 impl std::fmt::Display for Violation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "error[B003]: match on '{}' is not exhaustive\n  --> {}:{}\n  = note: missing variants: {}\n  = help: add case arms for {} or add a wildcard (_) pattern",
+            "error[B003]: match on '{}' is not exhaustive\n  --> {}:{}\n  = note: missing variants: {}\n  = help: {}",
             self.union_name,
             self.file, self.line,
             self.missing_variants.join(", "),
-            self.missing_variants.join(", ")
+            self.help_text()
         )
     }
 }
@@ -485,6 +497,7 @@ mod tests {
             }),
             purity: None,
             boundaries: None,
+            granularity: None,
         };
 
         let (_, _, warnings) = build_indices_for_lang(&spec, "python");
@@ -520,6 +533,7 @@ mod tests {
             }),
             purity: None,
             boundaries: None,
+            granularity: None,
         };
 
         let (_, _, warnings) = build_indices_for_lang(&spec, "python");
