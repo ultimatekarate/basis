@@ -11,6 +11,7 @@ mod lsp;
 mod report;
 mod spec;
 mod validate;
+mod watch;
 
 #[derive(Parser)]
 #[command(name = "basis", about = "Architectural governance CLI")]
@@ -110,6 +111,18 @@ enum Command {
         /// Show reasoning for each inference decision
         #[arg(long)]
         verbose: bool,
+    },
+    /// Watch source files and re-run `basis check` on changes
+    Watch {
+        /// Path to the basis.yaml spec
+        #[arg(long, default_value = "basis.yaml")]
+        spec: PathBuf,
+        /// Path to the codebase root
+        #[arg(default_value = ".")]
+        path: PathBuf,
+        /// Which axes to check (default: all)
+        #[arg(long, value_delimiter = ',')]
+        axes: Option<Vec<String>>,
     },
     /// Start the LSP server (stdio) for editor integration
     Lsp,
@@ -587,6 +600,17 @@ fn main() {
                     eprintln!("Wrote {}", out_path.display());
                 }
                 None => print!("{yaml}"),
+            }
+        }
+        Command::Watch {
+            spec: spec_path,
+            path,
+            axes,
+        } => {
+            let spec = load_and_validate(&spec_path);
+            if let Err(e) = watch::run_watch(&spec, &spec_path, &path, &axes) {
+                eprintln!("Error: {e}");
+                process::exit(1);
             }
         }
         Command::Lsp => {

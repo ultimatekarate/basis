@@ -74,6 +74,20 @@ pub enum ViolationDetails {
     },
 }
 
+impl std::fmt::Display for UnifiedViolation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "error[{}]: {}\n  --> {}:{}",
+            self.code, self.message, self.file, self.line
+        )?;
+        if !self.help.is_empty() {
+            write!(f, "\n  = help: {}", self.help)?;
+        }
+        Ok(())
+    }
+}
+
 // ── Constructors ───────────────────────────────────────────────────
 
 impl CheckResult {

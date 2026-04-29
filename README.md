@@ -102,6 +102,31 @@ Run:
 basis-cli check --spec basis.yaml .
 ```
 
+## Adopting Basis on an Existing Codebase
+
+A blank `basis.yaml` is a blank-page problem. `basis-cli infer` solves it by reading what your code already does:
+
+```bash
+basis-cli infer . --output basis.yaml
+```
+
+It walks the source tree, treats top-level directories as layers, derives `depends_on` from real imports, marks layers with no IO as `purity: strict`, surfaces frequently-typed parameter names as newtype candidates, and detects switch/match statements that look like enum unions.
+
+The output is a draft, not a destination. It describes the codebase as it is — drift and all. Rename layers to match how you actually think about the system. Drop newtype candidates that are coincidence. Add the constraints `infer` cannot know about.
+
+Run `basis-cli infer` against this repo and you'll get a smaller, less opinionated spec than the one we ship — and that gap is the point. Inference recovers structure that is implicit in the code; it cannot recover the boundary rule that says "only `spec-loader` may touch the network," or the distinction between a `dictionary` and a `laboratory`. Architectural intent lives outside the source. Encoding it is a job for a human. Enforcing it is the job of Basis.
+
+## Start Relaxed, Tighten Over Time
+
+A spec that fails on day one gets disabled. Begin loose:
+
+1. **Infer** the spec — it captures the structure that already exists.
+2. **Run `basis-cli check`** — it should pass, or nearly so.
+3. **Tighten one axis at a time.** Add a `boundaries` deny rule. Mark a layer `purity: strict` and fix the IO it surfaces. Promote a frequently-confused parameter to a newtype. Commit. Repeat.
+4. **Use `basis-cli baseline` and `basis-cli trend`** to ratchet — block new violations without forcing a flag-day cleanup of existing ones.
+
+The architecture you have is rarely the architecture you want. Basis lets you encode the gap and close it incrementally, instead of declaring bankruptcy.
+
 ## Self-Governance
 
 Basis governs itself. The repo's own `basis.yaml` defines four layers (dictionary, laboratory, spec-loader, basis-runner) and enforces all four axes on every commit. 340 tests.

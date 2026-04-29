@@ -7,3 +7,4 @@ pub mod lsp;
 pub mod report;
 pub mod spec;
 pub mod validate;
+pub mod watch;

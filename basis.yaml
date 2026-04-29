@@ -3,7 +3,7 @@ governance:
   model: linguistic
   check_tests: false
 
-# ── Basis governs itself ──────────────────────────────────────────────
+# Basis governs itself
 #
 # Functional core:
 #   Dictionary    — Inert nouns. Data types and configuration structures.
@@ -20,7 +20,7 @@ governance:
 # Internal layers access external packages through depends_on,
 # using the same structural dependency mechanism as internal code.
 
-# ── External Layers (tool groups) ────────────────────────────────────
+# External Layers (tool groups)
 
 layers:
   serialization:
@@ -53,7 +53,7 @@ layers:
     role: "Unrestricted external access"
     packages: ["*"]
 
-# ── Internal Layers ──────────────────────────────────────────────────
+# Internal Layers
 
   dictionary:
     role: "Inert nouns. Governance spec data types, error types, configuration structures."
@@ -141,7 +141,7 @@ layers:
       - all-external
 
 
-# ── Values Axis ───────────────────────────────────────────────────────
+# Values Axis 
 
 newtypes:
   enabled: true
@@ -153,7 +153,7 @@ newtypes:
     - name: SpecVersion
       wraps: string
 
-# ── Completeness Axis ─────────────────────────────────────────────────
+# Completeness Axis 
 
 exhaustive_matching:
   enabled: true
@@ -179,7 +179,7 @@ exhaustive_matching:
         - Strict
         - Relaxed
 
-# ── Purity Axis ───────────────────────────────────────────────────────
+# Purity Axis
 
 purity:
   enabled: true
@@ -194,7 +194,7 @@ purity:
     - "subprocess"
     - "process"
 
-# ── Placement Axis ────────────────────────────────────────────────────
+# Placement Axis
 
 boundaries:
   enabled: true
@@ -220,7 +220,7 @@ boundaries:
       action: deny
       reason: "only spec-loader may fetch remote specs"
 
-# ── Granularity Axis ──────────────────────────────────────────────────
+# Granularity Axis 
 #
 # Per-file line budget. Tests are intentionally counted: a 2000-line test
 # file inflates an agent's context window the same as a 2000-line production
