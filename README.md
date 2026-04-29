@@ -21,7 +21,7 @@ error: aborting due to 2 basis violation(s)
 
 ## Four Axes
 
-Every architectural governance rule we've encountered reduces to a constraint along one of four axes:
+Every architectural governance rule we've encountered (so far) reduces to a constraint along one of four axes:
 
 | Axis | Governs | Error |
 | ------ | --------- | ------- |
@@ -30,7 +30,7 @@ Every architectural governance rule we've encountered reduces to a constraint al
 | **Completeness** | Case handling — every union variant must be addressed | B003 |
 | **Purity** | Side effects — a pure layer cannot perform IO | B004 |
 
-Violations are compiler errors, not warnings. `basis check` returns a non-zero exit code. CI blocks the merge. The architecture cannot decay.
+Violations are compiler errors, not warnings. `basis check` returns a non-zero exit code. CI blocks the merge based on your rules. The architecture cannot decay.
 
 ## Languages
 
