@@ -8,7 +8,7 @@ The solution is proactive architectural governance that makes illegal states unr
 
 ## The Basis
 
-Every architectural governance rule we've encountered reduces to a constraint along one of four axes:
+Every architectural governance rule I've encountered (so far) reduces to a constraint along one of four axes:
 
 | Axis | Governs | Makes Unrepresentable |
 | ------ | --------- | ---------------------- |
@@ -17,7 +17,7 @@ Every architectural governance rule we've encountered reduces to a constraint al
 | **Completeness** | Case handling | Unhandled states — every enum variant must be addressed |
 | **Purity** | Side effects | Invalid effects — a pure function cannot perform IO |
 
-These four axes appear to be independent — each can be tightened or relaxed without affecting the others — and sufficient for every governance rule we've tested against. We have not found a counterexample. If you find one, we want to hear about it.
+These four axes appear to be independent — each can be tightened or relaxed without affecting the others — and sufficient for every governance rule we've tested against. I have not found a counterexample. If you find one, I want to hear about it.
 
 ### Why These Four Axes
 
@@ -31,36 +31,17 @@ A program does four things at the architectural level: it represents data, it or
 
 **Purity** constrains effects. When any function can perform IO, read the clock, or mutate global state, the only way to know what a function does is to read its implementation. Effect restrictions make forbidden side effects a compile error. This axis answers: *does this code touch the outside world?*
 
-#### Orthogonality
-
-These four axes are independent because each constrains a different dimension of a program's structure:
-
-- **Values** operates on types — the signatures of functions.
-- **Placement** operates on imports — the dependency graph between modules.
-- **Completeness** operates on branches — the arms of match and switch statements.
-- **Purity** operates on calls — the IO and effect APIs a function invokes.
-
-You can tighten or relax any axis without affecting the others. Adding a branded newtype does not change which modules can import which. Marking a layer strict-purity does not affect whether its match statements are exhaustive. No two axes ever produce the same error for the same defect, because they examine different syntax.
-
-#### Sufficiency
-
-Every architectural governance rule we've tested decomposes onto these four axes. Layered architecture, hexagonal ports and adapters, the dependency rule — all Placement. Branded types, value objects, newtypes — all Values. Exhaustive pattern matching, sealed class hierarchies — all Completeness. Effect systems, monadic IO, pure/impure separation — all Purity.
-
-The four axes correspond to four things a static tool can verify about code structure: type identity, module visibility, branch totality, and effect tracking.
-
-This is an empirical claim, not a mathematical proof. We haven't found a fifth axis — a governance rule that doesn't decompose onto these four and that can be checked statically on source text. That doesn't mean one can't exist. The claim is strong enough to build on, not strong enough to call a theorem.
-
 #### Standing on Shoulders
 
 The ideas behind Basis did not appear from the ether. They were shaped by people who thought deeply about how software should be built — people whose work I return to, and whose influence runs through every axis.
 
-Grace Hopper insisted that machines should speak our language, not the other way around. The compiler as a bridge between human intent and machine execution — that conviction is the reason Basis is a compiler, not a linter. If the machine can understand the architectural intent, it should enforce it. To my mind, there is no greater influence on software engineering than Read Admiral "Based" Grace Hopper.
+Grace Hopper insisted that machines should speak our language, not the other way around. The compiler as a bridge between human intent and machine execution — that conviction is the reason Basis is a compiler, not a linter. If the machine can understand the architectural intent, it should enforce it. To my mind, there is no greater influence on software engineering than Read Admiral Grace Hopper.
 
 Margaret Hamilton gave software engineering its name and proved that disciplined architecture saves lives. The layered rigor she brought to Apollo — where a software error could be fatal — is the same rigor Basis applies to every codebase. Architecture is not optional when failure is not optional. I think it is egregious that we do not have to clarify "Hamiltonian in what sense?" when discussing software.
 
 David Parnas showed that what a module hides matters more than what it exposes. Information hiding and modular decomposition are the intellectual seed of the Placement axis. A module boundary is only meaningful if it can be enforced.
 
-Alistair Cockburn drew a hexagon and changed how we think about inside and outside. Ports and adapters gave us a vocabulary for separating domain logic from infrastructure — a separation that Basis enforces through the combination of Placement and Purity.
+Alistair Cockburn drew a hexagon and changed how I think about inside and outside. Ports and adapters gave us a vocabulary for separating domain logic from infrastructure — a separation that Basis enforces through the combination of Placement and Purity.
 
 Vint Cerf proved that layered contracts can hold a global network together. If the protocol stack can enforce that each layer speaks only to its neighbors, then a codebase can enforce the same. The internet works because layers are contracts, not suggestions.
 
