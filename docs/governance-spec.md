@@ -31,26 +31,6 @@ A program does four things at the architectural level: it represents data, it or
 
 **Purity** constrains effects. When any function can perform IO, read the clock, or mutate global state, the only way to know what a function does is to read its implementation. Effect restrictions make forbidden side effects a compile error. This axis answers: *does this code touch the outside world?*
 
-#### Standing on Shoulders
-
-The ideas behind Basis did not appear from the ether. They were shaped by people who thought deeply about how software should be built — people whose work I return to, and whose influence runs through every axis.
-
-Grace Hopper insisted that machines should speak our language, not the other way around. The compiler as a bridge between human intent and machine execution — that conviction is the reason Basis is a compiler, not a linter. If the machine can understand the architectural intent, it should enforce it. To my mind, there is no greater influence on software engineering than Read Admiral Grace Hopper.
-
-Margaret Hamilton gave software engineering its name and proved that disciplined architecture saves lives. The layered rigor she brought to Apollo — where a software error could be fatal — is the same rigor Basis applies to every codebase. Architecture is not optional when failure is not optional. I think it is egregious that we do not have to clarify "Hamiltonian in what sense?" when discussing software.
-
-David Parnas showed that what a module hides matters more than what it exposes. Information hiding and modular decomposition are the intellectual seed of the Placement axis. A module boundary is only meaningful if it can be enforced.
-
-Alistair Cockburn drew a hexagon and changed how I think about inside and outside. Ports and adapters gave us a vocabulary for separating domain logic from infrastructure — a separation that Basis enforces through the combination of Placement and Purity.
-
-Vint Cerf proved that layered contracts can hold a global network together. If the protocol stack can enforce that each layer speaks only to its neighbors, then a codebase can enforce the same. The internet works because layers are contracts, not suggestions.
-
-Robert C. Martin articulated the dependency rule: dependencies point inward, always. Clean Architecture's lasting gift is the insight that the direction of a dependency is an architectural decision, and wrong directions compound. The Placement axis enforces this mechanically.
-
-Basis is also Dijkstra-ian in spirit. The preference for structured constraints over undisciplined freedom — for making the space of possible programs smaller so that the remaining programs are more likely to be correct — is an influence absorbed rather than studied directly, but it runs through everything.
-
-Fundamentally, Basis is a synthesis of all of these ideas.
-
 ## The Governance Spec
 
 A single YAML file describes the architectural governance for any codebase in any language. The spec is read by per-language enforcement plugins (linters, type checker plugins, CI gates) and optionally by LLM tools to constrain code generation output.
