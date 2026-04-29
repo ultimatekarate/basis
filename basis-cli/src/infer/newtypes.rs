@@ -70,7 +70,7 @@ pub fn infer_newtypes(
     let mut seen_names: HashMap<String, usize> = HashMap::new();
 
     let mut candidates: Vec<_> = freq.into_iter().collect();
-    candidates.sort_by(|a, b| b.1 .0.cmp(&a.1 .0)); // Sort by frequency descending
+    candidates.sort_by_key(|e| std::cmp::Reverse(e.1 .0)); // Sort by frequency descending
 
     for ((suffix_key, canonical_type), (count, _examples)) in candidates {
         if count < min_occurrences {

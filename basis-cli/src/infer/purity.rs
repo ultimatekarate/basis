@@ -79,7 +79,7 @@ fn build_file_layer_map(
             prefixes.push((pkg.as_str(), layer.name.as_str()));
         }
     }
-    prefixes.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+    prefixes.sort_by_key(|e| std::cmp::Reverse(e.0.len()));
 
     for (idx, file) in files.iter().enumerate() {
         for (prefix, layer_name) in &prefixes {

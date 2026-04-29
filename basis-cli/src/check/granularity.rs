@@ -115,7 +115,7 @@ fn build_layer_map(spec: &BasisSpec) -> Vec<(String, String)> {
         }
     }
     // Longer prefixes win — match `basis-cli/src/check` before `basis-cli/src`.
-    entries.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+    entries.sort_by_key(|e| std::cmp::Reverse(e.0.len()));
     entries
 }
 

@@ -29,7 +29,7 @@ pub fn infer_boundaries(
         }
     }
     // Sort by length descending for longest-prefix matching
-    prefix_map.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+    prefix_map.sort_by_key(|e| std::cmp::Reverse(e.0.len()));
 
     // Collect observed edges: (from_layer, to_layer) -> count
     let mut edges: HashMap<(String, String), usize> = HashMap::new();
@@ -115,7 +115,7 @@ fn build_file_layer_map(layers: &[InferredLayer], files: &[FileInfo]) -> HashMap
             prefixes.push((pkg.as_str(), layer.name.as_str()));
         }
     }
-    prefixes.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+    prefixes.sort_by_key(|e| std::cmp::Reverse(e.0.len()));
 
     for (idx, file) in files.iter().enumerate() {
         for (prefix, layer_name) in &prefixes {

@@ -79,55 +79,53 @@ pub fn extract_raw_match_cases(content: &str, lang_name: &str) -> Vec<RawMatchCa
                     }
                 }
             }
-            "rust" => {
-                if trimmed.starts_with("match ") && trimmed.contains('{') {
-                    let matched_expr = trimmed[6..]
-                        .split('{')
-                        .next()
-                        .unwrap_or("")
-                        .trim()
-                        .to_string();
-                    let mut cases = HashSet::new();
-                    let mut has_wildcard = false;
-                    for subsequent in &lines[line_num + 1..] {
-                        let sub = subsequent.trim();
-                        if sub == "}" {
-                            break;
-                        }
-                        if sub.starts_with('_') && sub.contains("=>") {
-                            has_wildcard = true;
-                            break;
-                        }
-                        if sub.contains("=>") {
-                            let pattern = sub.split("=>").next().unwrap_or("").trim();
-                            for part in pattern.split('|') {
-                                let part = part.trim();
-                                let clean = if part.contains("::") {
-                                    part.rsplit("::").next().unwrap_or("")
-                                } else {
-                                    part.split('(')
-                                        .next()
-                                        .unwrap_or("")
-                                        .split('{')
-                                        .next()
-                                        .unwrap_or("")
-                                };
-                                let clean = clean.trim();
-                                if !clean.is_empty() && clean != "_" {
-                                    cases.insert(clean.to_string());
-                                }
+            "rust" if trimmed.starts_with("match ") && trimmed.contains('{') => {
+                let matched_expr = trimmed[6..]
+                    .split('{')
+                    .next()
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                let mut cases = HashSet::new();
+                let mut has_wildcard = false;
+                for subsequent in &lines[line_num + 1..] {
+                    let sub = subsequent.trim();
+                    if sub == "}" {
+                        break;
+                    }
+                    if sub.starts_with('_') && sub.contains("=>") {
+                        has_wildcard = true;
+                        break;
+                    }
+                    if sub.contains("=>") {
+                        let pattern = sub.split("=>").next().unwrap_or("").trim();
+                        for part in pattern.split('|') {
+                            let part = part.trim();
+                            let clean = if part.contains("::") {
+                                part.rsplit("::").next().unwrap_or("")
+                            } else {
+                                part.split('(')
+                                    .next()
+                                    .unwrap_or("")
+                                    .split('{')
+                                    .next()
+                                    .unwrap_or("")
+                            };
+                            let clean = clean.trim();
+                            if !clean.is_empty() && clean != "_" {
+                                cases.insert(clean.to_string());
                             }
                         }
                     }
-                    if !cases.is_empty() {
-                        out.push(RawMatchCases {
-                            file_index: 0,
-                            line: line_num + 1,
-                            matched_expr,
-                            cases,
-                            has_wildcard,
-                        });
-                    }
+                }
+                if !cases.is_empty() {
+                    out.push(RawMatchCases {
+                        file_index: 0,
+                        line: line_num + 1,
+                        matched_expr,
+                        cases,
+                        has_wildcard,
+                    });
                 }
             }
             "js" | "java" | "csharp" | "go" | "kotlin" | "swift" => {
@@ -189,47 +187,45 @@ pub fn extract_raw_match_cases(content: &str, lang_name: &str) -> Vec<RawMatchCa
                     });
                 }
             }
-            "ruby" => {
-                // Ruby case/when
-                if trimmed.starts_with("case ") || trimmed == "case" {
-                    let matched_expr = if trimmed.len() > 5 {
-                        trimmed[5..].trim().to_string()
-                    } else {
-                        String::new()
-                    };
-                    let mut cases = HashSet::new();
-                    let mut has_wildcard = false;
-                    for subsequent in &lines[line_num + 1..] {
-                        let sub = subsequent.trim();
-                        if sub == "end" {
-                            break;
-                        }
-                        if let Some(after_when) = sub.strip_prefix("when ") {
-                            let val = after_when
-                                .split(&[',', '\n'][..])
-                                .next()
-                                .unwrap_or("")
-                                .trim()
-                                .trim_matches('"')
-                                .trim_matches('\'')
-                                .trim_matches(':');
-                            if !val.is_empty() {
-                                cases.insert(val.to_string());
-                            }
-                        }
-                        if sub.starts_with("else") {
-                            has_wildcard = true;
+            // Ruby case/when
+            "ruby" if trimmed.starts_with("case ") || trimmed == "case" => {
+                let matched_expr = if trimmed.len() > 5 {
+                    trimmed[5..].trim().to_string()
+                } else {
+                    String::new()
+                };
+                let mut cases = HashSet::new();
+                let mut has_wildcard = false;
+                for subsequent in &lines[line_num + 1..] {
+                    let sub = subsequent.trim();
+                    if sub == "end" {
+                        break;
+                    }
+                    if let Some(after_when) = sub.strip_prefix("when ") {
+                        let val = after_when
+                            .split(&[',', '\n'][..])
+                            .next()
+                            .unwrap_or("")
+                            .trim()
+                            .trim_matches('"')
+                            .trim_matches('\'')
+                            .trim_matches(':');
+                        if !val.is_empty() {
+                            cases.insert(val.to_string());
                         }
                     }
-                    if !cases.is_empty() {
-                        out.push(RawMatchCases {
-                            file_index: 0,
-                            line: line_num + 1,
-                            matched_expr,
-                            cases,
-                            has_wildcard,
-                        });
+                    if sub.starts_with("else") {
+                        has_wildcard = true;
                     }
+                }
+                if !cases.is_empty() {
+                    out.push(RawMatchCases {
+                        file_index: 0,
+                        line: line_num + 1,
+                        matched_expr,
+                        cases,
+                        has_wildcard,
+                    });
                 }
             }
             _ => {}
