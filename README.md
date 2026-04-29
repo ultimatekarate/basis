@@ -1,3 +1,5 @@
+![CI](https://github.com/ultimatekarate/basis/actions/workflows/ci.yml/badge.svg)](https://github.com/ultimatekarate/basis/actions/workflows/ci.yml)
+
 # Basis
 
 LLMs amplify whatever the developer already is. Good architecture plus LLM produces correct code at machine speed. Bad architecture plus LLM produces incorrect code at machine speed.
