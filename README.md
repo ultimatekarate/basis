@@ -1,4 +1,4 @@
-![CI](https://github.com/ultimatekarate/basis/actions/workflows/ci.yml/badge.svg)](https://github.com/ultimatekarate/basis/actions/workflows/ci.yml)
+[![CI](https://github.com/ultimatekarate/basis/actions/workflows/ci.yml/badge.svg)](https://github.com/ultimatekarate/basis/actions/workflows/ci.yml)
 
 # Basis
 
