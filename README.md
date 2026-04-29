@@ -32,6 +32,12 @@ Every architectural governance rule we've encountered (so far) reduces to a cons
 
 Violations are compiler errors, not warnings. `basis check` returns a non-zero exit code. CI blocks the merge based on your rules. The architecture cannot decay.
 
+## Approach
+
+Basis is a string-matching tool, not an AST analyzer. It reads source files as text and applies pattern rules from your spec. This is a deliberate design choice. Basis catches architectural drift: layer-crossing imports, primitives where branded types are required, missing enum arms, IO in modules marked pure. These are patterns visible in source text — string matching plus a spec is enough to find them, the same way across every language we support.
+
+What Basis won't catch are problems that require understanding code semantics: a function that accepts a `UserId` and treats it as a string internally, an enum match driven by computed values, a side effect hidden behind three layers of indirection. Tools to do that already exist. Basis enforces the rules text alone can express. It doesn't pretend to do anything else.
+
 ## Languages
 
 Python, Rust, TypeScript/JavaScript, Go, Java, Kotlin, Swift, C#, Ruby.
@@ -138,3 +144,7 @@ Basis governs itself. The repo's own `basis.yaml` defines four layers (dictionar
 See [docs/governance-spec.md](docs/governance-spec.md) for the full spec format.
 
 See [docs/guide.md](docs/guide.md) for a complete walkthrough.
+
+## Contributing
+
+Coverage across languages is uneven. File an issue if Basis misses something or flags something it shouldn't. I want this tool to be useful.
