@@ -158,9 +158,8 @@ pub fn check_placement(spec: &BasisSpec, root: &Path, registry: &LangRegistry) -
 /// `./utils` from `analysis/trends.ts` → `analysis/utils`
 /// `../types/types` from `analysis/trends.ts` → `types/types`
 fn resolve_relative_import(normalized: &str, file_dir: &str) -> String {
-    if normalized.starts_with("./") {
+    if let Some(rest) = normalized.strip_prefix("./") {
         // Same-directory reference: prepend the file's directory
-        let rest = &normalized[2..];
         if file_dir.is_empty() {
             rest.to_string()
         } else {
@@ -173,10 +172,10 @@ fn resolve_relative_import(normalized: &str, file_dir: &str) -> String {
         } else {
             file_dir.split('/').collect()
         };
-        let mut rest = &normalized[..];
-        while rest.starts_with("../") {
+        let mut rest = normalized;
+        while let Some(stripped) = rest.strip_prefix("../") {
             dir_parts.pop(); // go up one level
-            rest = &rest[3..];
+            rest = stripped;
         }
         if dir_parts.is_empty() {
             rest.to_string()

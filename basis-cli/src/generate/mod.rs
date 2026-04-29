@@ -366,6 +366,9 @@ mod tests {
     use crate::language::MatchHit;
     use std::collections::HashSet;
 
+    type VariantIndex = std::collections::HashMap<String, (String, HashSet<String>)>;
+    type UnionMap = std::collections::HashMap<String, HashSet<String>>;
+
     fn variants() -> Vec<String> {
         vec![
             "Pending".to_string(),
@@ -376,13 +379,7 @@ mod tests {
         ]
     }
 
-    fn build_indices(
-        union_name: &str,
-        variants: &[String],
-    ) -> (
-        std::collections::HashMap<String, (String, HashSet<String>)>,
-        std::collections::HashMap<String, HashSet<String>>,
-    ) {
+    fn build_indices(union_name: &str, variants: &[String]) -> (VariantIndex, UnionMap) {
         let variant_set: HashSet<String> = variants.iter().cloned().collect();
         let mut vi = std::collections::HashMap::new();
         for v in variants {

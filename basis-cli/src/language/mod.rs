@@ -57,6 +57,9 @@ pub type MatchScanner = fn(
     out: &mut Vec<MatchHit>,
 );
 
+/// Generator function: emits a newtype wrapper given (name, primitive, optional validation hint).
+pub type NewtypeGenerator = fn(&str, &str, Option<&str>) -> String;
+
 /// A complete language definition.
 pub struct LangDef {
     pub name: &'static str,
@@ -80,7 +83,7 @@ pub struct LangDef {
     // Generation — projecting spec into idiomatic code
     pub preferred_type: &'static [(&'static str, &'static str)],
     pub generate_preamble: Option<fn(bool, bool) -> String>,
-    pub generate_newtype: Option<fn(&str, &str, Option<&str>) -> String>,
+    pub generate_newtype: Option<NewtypeGenerator>,
     pub generate_union: Option<fn(&str, &[String]) -> String>,
     pub generate_match_scaffold: Option<fn(&str, &[String]) -> String>,
     pub type_file_name: &'static str,

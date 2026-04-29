@@ -155,8 +155,8 @@ fn scan_signatures(
 
         // Extract function name: between "def "/"async def " and "("
         let fn_name = {
-            let after_keyword = if trimmed.starts_with("async def ") {
-                &trimmed[10..]
+            let after_keyword = if let Some(stripped) = trimmed.strip_prefix("async def ") {
+                stripped
             } else {
                 &trimmed[4..]
             };
